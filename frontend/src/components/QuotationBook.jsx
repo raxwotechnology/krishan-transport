@@ -14,7 +14,7 @@ import {
   Truck
 } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/billingGenerator';
-import './HireBook.css';
+import '../styles/forms.css';
 
 const QuotationBook = () => {
   const [quotations, setQuotations] = useState([]);

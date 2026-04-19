@@ -14,7 +14,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { generateInvoicePDF } from '../utils/billingGenerator';
-import './HireBook.css'; // Reusing established table styles
+import '../styles/forms.css';
 
 const InvoiceBook = () => {
   const [invoices, setInvoices] = useState([]);
