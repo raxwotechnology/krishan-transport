@@ -1,0 +1,93 @@
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  background-color: var(--bg-main);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.custom-table th {
+  padding: 16px 24px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-table td {
+  padding: 16px 24px;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-table tr:last-child td {
+  border-bottom: none;
+}
+
+.custom-table tr:hover td {
+  background-color: #F8FAFC;
+}
+
+.empty-row {
+  padding: 80px 0 !important;
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-btn, .delete-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.edit-btn {
+  background-color: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.edit-btn:hover {
+  background-color: var(--primary);
+  color: white;
+}
+
+.delete-btn {
+  background-color: transparent;
+  color: #EF4444;
+  border: 1px solid #EF4444;
+}
+
+.delete-btn:hover {
+  background-color: #EF4444;
+  color: white;
+}

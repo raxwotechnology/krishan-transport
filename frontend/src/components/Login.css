@@ -1,0 +1,108 @@
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-main);
+  background-image: radial-gradient(circle at center, rgba(37, 99, 235, 0.05) 0%, transparent 70%);
+}
+
+.login-card {
+  background: white;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  border: 1px solid var(--border);
+}
+
+.login-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.login-logo {
+  height: 64px;
+  object-fit: contain;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-header h2 {
+  font-size: 1.5rem;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.login-header p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.login-form .form-group {
+  margin-bottom: 20px;
+}
+
+.login-form label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 10px;
+}
+
+.login-btn:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.login-btn:disabled {
+  background-color: #93C5FD;
+  cursor: not-allowed;
+}
+
+.login-error {
+  background-color: #FEE2E2;
+  color: #DC2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+  border: 1px solid #F87171;
+  text-align: center;
+}

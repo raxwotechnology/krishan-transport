@@ -1,0 +1,369 @@
+/* ===================================================
+   Financial Report Styles
+   =================================================== */
+
+.report-container {
+  padding: 0;
+}
+
+/* ── Top controls ── */
+.report-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.report-controls label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
+.report-controls select {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  background: var(--bg-main);
+  cursor: pointer;
+}
+
+.report-controls select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.report-divider {
+  flex: 1;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s ease;
+}
+
+.download-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+}
+
+.download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Report document (the printable area) ── */
+#report-document {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px;
+  box-shadow: var(--shadow-md);
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.report-header-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.report-logo {
+  width: 64px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-title h2 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #2563EB;
+  margin: 0;
+}
+
+.report-title p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 4px 0 0;
+}
+
+.report-contact-info {
+  text-align: right;
+  font-size: 0.85rem;
+  color: #4B5563;
+  line-height: 1.6;
+}
+
+.report-contact-info p {
+  margin: 0;
+}
+
+.report-divider-line {
+  height: 2px;
+  background: var(--border);
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.report-meta-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+}
+
+.report-doc-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.report-meta-details {
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.report-meta-details div {
+  margin-bottom: 2px;
+}
+
+.report-meta-details strong {
+  color: var(--text-main);
+}
+
+/* ── KPI cards ── */
+.report-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.kpi-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 20px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--kpi-color, var(--primary));
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.kpi-profit .kpi-value { color: #10B981; }
+.kpi-loss   .kpi-value { color: #EF4444; }
+
+/* ── Section titles ── */
+.report-section {
+  margin-bottom: 32px;
+}
+
+.report-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Breakdown table ── */
+.breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.breakdown-table th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.breakdown-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
+}
+
+.breakdown-table tr:last-child td {
+  border-bottom: none;
+}
+
+.breakdown-table .cat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.cat-revenue { background: #DBEAFE; color: #1D4ED8; }
+.cat-expense { background: #FEE2E2; color: #DC2626; }
+.cat-neutral { background: #F1F5F9; color: #475569; }
+
+.amount-cell {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.amount-pos { color: #10B981; }
+.amount-neg { color: #EF4444; }
+
+.total-row td {
+  background: var(--bg-secondary);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-top: 2px solid var(--border);
+}
+
+/* ── Recent transactions ── */
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.txn-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.txn-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.txn-info {
+  flex: 1;
+}
+
+.txn-info p {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.txn-info span {
+  font-size: 0.77rem;
+  color: var(--text-secondary);
+}
+
+.txn-amount {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* ── Report footer ── */
+.report-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Loading / empty ── */
+.report-loading {
+  padding: 80px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

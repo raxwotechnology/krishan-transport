@@ -1,0 +1,13 @@
+const mongoose = require('mongoose');
+
+const DieselSchema = new mongoose.Schema({
+  date: { type: Date, default: Date.now },
+  vehicle: { type: String, required: true },
+  liters: { type: Number, required: true },
+  pricePerLiter: { type: Number, required: true },
+  total: { type: Number, required: true },
+  odometer: { type: Number },
+  note: { type: String }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Diesel', DieselSchema);
