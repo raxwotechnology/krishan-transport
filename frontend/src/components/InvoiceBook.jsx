@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { generateInvoicePDF } from '../utils/billingGenerator';
 import '../styles/forms.css';
+import '../styles/books.css';
 
 const InvoiceBook = () => {
   const [invoices, setInvoices] = useState([]);

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/billingGenerator';
 import '../styles/forms.css';
+import '../styles/books.css';
 
 const QuotationBook = () => {
   const [quotations, setQuotations] = useState([]);

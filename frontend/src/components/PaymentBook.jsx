@@ -6,6 +6,7 @@ import { paymentAPI, vehicleAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
 import { Download } from 'lucide-react';
 import '../styles/forms.css';
+import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
 
 const PaymentBook = () => {
