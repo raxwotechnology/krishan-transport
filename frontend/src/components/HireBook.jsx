@@ -207,6 +207,7 @@ const HireBook = () => {
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); setEditingItem(null); }} 
         title={editingItem ? 'Edit Hire Job' : 'Add Hire Job'}
+        wide
       >
         <HireForm 
           onSubmit={handleAddJob} 

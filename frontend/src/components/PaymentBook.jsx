@@ -190,6 +190,7 @@ const PaymentBook = () => {
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); setEditingItem(null); }} 
         title={editingItem ? 'Edit Payment Record' : 'Add Payment Record'}
+        wide
       >
         <PaymentForm 
           onSubmit={handleAddPayment} 

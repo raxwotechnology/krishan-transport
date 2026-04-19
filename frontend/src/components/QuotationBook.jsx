@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { 
-  FileCheck, 
-  Plus, 
-  Download, 
-  Trash2, 
-  Search, 
-  Loader2,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  Truck
-} from 'lucide-react';
+import { FileCheck, Plus, Download, Trash2, Search, Loader2, Calendar, CheckCircle2, Clock, XCircle, Truck } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/billingGenerator';
 import '../styles/forms.css';
 import '../styles/books.css';
+
+const DEFAULT_TERMS = `1. Prices are exclusive of any taxes unless mentioned.
+2. Payment must be made as per agreed terms.
+3. We are not responsible for any delays due to site access issues.`;
+
+const defaultForm = () => ({
+  clientName: '', clientAddress: '', date: new Date().toISOString().split('T')[0],
+  vehicleType: '', vehicleNo: '', maxHeight: '', maxWeight: '',
+  mandatoryCharge: 0, transportCharge: 0, extraHourRate: 0,
+  validityDays: 30, termsAndConditions: DEFAULT_TERMS,
+  estimatedTotal: 0, status: 'Draft'
+});
 
 const QuotationBook = () => {
   const [quotations, setQuotations] = useState([]);
@@ -23,157 +23,120 @@ const QuotationBook = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState(defaultForm());
 
-  const [formData, setFormData] = useState({
-    clientName: '',
-    clientAddress: '',
-    date: new Date().toISOString().split('T')[0],
-    vehicleType: '',
-    vehicleNo: '',
-    maxHeight: '',
-    maxWeight: '',
-    mandatoryCharge: 0,
-    transportCharge: 0,
-    extraHourRate: 0,
-    validityDays: 30,
-    termsAndConditions: '1. Prices are exclusive of any taxes unless mentioned.\n2. Payment must be made as per agreed terms.\n3. We are not responsible for any delays due to site access issues.',
-    status: 'Draft'
-  });
-
-  useEffect(() => {
-    fetchQuotations();
-  }, []);
+  useEffect(() => { fetchQuotations(); }, []);
 
   const fetchQuotations = async () => {
     try {
       const res = await api.get('/quotations');
-      setQuotations(res.data);
-    } catch (err) {
-      console.error("Error fetching quotations", err);
-    } finally {
-      setLoading(false);
-    }
+      setQuotations(Array.isArray(res.data) ? res.data : []);
+    } catch (err) { console.error('Error fetching quotations', err); }
+    finally { setLoading(false); }
   };
 
-  const calculateTotal = (data) => {
-    return (Number(data.mandatoryCharge) || 0) + (Number(data.transportCharge) || 0);
+  const calcTotal = (d) =>
+    +(Number(d.mandatoryCharge || 0) + Number(d.transportCharge || 0)).toFixed(2);
+
+  const handleChange = (e) => {
+    const updated = { ...formData, [e.target.name]: e.target.value };
+    updated.estimatedTotal = calcTotal(updated);
+    setFormData(updated);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const estimatedTotal = calculateTotal(formData);
-      await api.post('/quotations', { ...formData, estimatedTotal });
+      await api.post('/quotations', { ...formData, estimatedTotal: calcTotal(formData) });
       setShowModal(false);
-      resetForm();
+      setFormData(defaultForm());
       fetchQuotations();
-    } catch (err) {
-      alert("Error saving quotation");
-    } finally {
-      setSubmitting(false);
-    }
+    } catch { alert('Error saving quotation'); }
+    finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Delete this quotation?")) {
+    if (window.confirm('Delete this quotation?')) {
       await api.delete(`/quotations/${id}`);
       fetchQuotations();
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      clientName: '',
-      clientAddress: '',
-      date: new Date().toISOString().split('T')[0],
-      vehicleType: '',
-      vehicleNo: '',
-      maxHeight: '',
-      maxWeight: '',
-      mandatoryCharge: 0,
-      transportCharge: 0,
-      extraHourRate: 0,
-      validityDays: 30,
-      termsAndConditions: '1. Prices are exclusive of any taxes unless mentioned.\n2. Payment must be made as per agreed terms.\n3. We are not responsible for any delays due to site access issues.',
-      status: 'Draft'
-    });
-  };
-
-  const filteredQuotes = quotations.filter(quo => 
-    quo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quo.quotationNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (quo.vehicleNo && quo.vehicleNo.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filtered = quotations.filter(q =>
+    (q.clientName  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (q.quotationNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (q.vehicleType || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusBadge = (status) => {
+  const badge = (status) => {
     switch(status) {
       case 'Accepted': return <span className="badge badge-success"><CheckCircle2 size={12} /> Accepted</span>;
-      case 'Sent': return <span className="badge badge-info"><Clock size={12} /> Sent</span>;
+      case 'Sent':     return <span className="badge badge-info"><Clock size={12} /> Sent</span>;
       case 'Rejected': return <span className="badge badge-danger"><XCircle size={12} /> Rejected</span>;
-      default: return <span className="badge badge-warning"><Clock size={12} /> Draft</span>;
+      default:         return <span className="badge badge-warning"><Clock size={12} /> Draft</span>;
     }
   };
 
+  const fd = formData;
+
   return (
     <div className="hire-book-container">
-      <div className="book-header">
-        <div className="header-main">
-          <div className="title-section">
-            <FileCheck className="title-icon" size={24} />
-            <h1>Service Quotations</h1>
+
+      {/* Summary */}
+      <div className="book-container">
+        <div className="book-summary">
+          <div className="summary-item"><label>TOTAL QUOTATIONS</label><h3>{quotations.length}</h3></div>
+          <div className="summary-item" style={{ borderRight:'none' }}>
+            <label>ACCEPTED</label>
+            <h3 style={{ color:'#16a34a' }}>{quotations.filter(q => q.status === 'Accepted').length}</h3>
           </div>
-          <button className="add-btn" onClick={() => setShowModal(true)}>
-            <Plus size={20} /> New Quotation
-          </button>
-        </div>
-        
-        <div className="search-bar">
-          <Search size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by Quote No, Client or Vehicle..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
         </div>
       </div>
 
-      {loading ? (
-        <div className="loading-state">
-          <Loader2 className="spinner" />
-          <p>Loading Quotation Records...</p>
+      {/* Header */}
+      <div className="book-header">
+        <div className="header-main">
+          <div className="title-section"><FileCheck className="title-icon" size={24} /><h1>Service Quotations</h1></div>
+          <button className="add-btn" onClick={() => setShowModal(true)}><Plus size={18} /> New Quotation</button>
         </div>
+        <div className="search-bar">
+          <Search size={16} />
+          <input type="text" placeholder="Search by No, Client, Vehicle Type..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="loading-state"><Loader2 className="spinner" /><p>Loading...</p></div>
       ) : (
         <div className="table-responsive">
           <table className="hire-table">
-            <thead>
-              <tr>
-                <th>Quote No</th>
-                <th>Date</th>
-                <th>Client</th>
-                <th>Vehicle Type</th>
-                <th>Estimated Total</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Quote No</th><th>Date</th><th>Client</th><th>Vehicle Type</th>
+              <th>Max Height</th><th>Max Weight</th><th>Min Charge</th>
+              <th>Transport</th><th>Extra/Hr</th><th>Est. Total</th><th>Validity</th><th>Status</th><th>Actions</th>
+            </tr></thead>
             <tbody>
-              {filteredQuotes.map(quo => (
-                <tr key={quo._id}>
-                  <td><strong>{quo.quotationNo}</strong></td>
-                  <td>{new Date(quo.date).toLocaleDateString()}</td>
-                  <td>{quo.clientName}</td>
-                  <td>{quo.vehicleType || 'N/A'}</td>
-                  <td className="amount-cell">Rs. {quo.estimatedTotal?.toLocaleString()}</td>
-                  <td>{getStatusBadge(quo.status)}</td>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={13} style={{ textAlign:'center', padding:'40px', color:'#94a3b8' }}>No quotations yet. Click "+ New Quotation" to create one.</td></tr>
+              ) : filtered.map(q => (
+                <tr key={q._id}>
+                  <td><strong>{q.quotationNo}</strong></td>
+                  <td>{new Date(q.date).toLocaleDateString()}</td>
+                  <td>{q.clientName}<br/><small>{q.clientAddress}</small></td>
+                  <td>{q.vehicleType || '—'}</td>
+                  <td>{q.maxHeight || '—'}</td>
+                  <td>{q.maxWeight || '—'}</td>
+                  <td>LKR {(q.mandatoryCharge || 0).toLocaleString()}</td>
+                  <td>LKR {(q.transportCharge || 0).toLocaleString()}</td>
+                  <td>LKR {(q.extraHourRate || 0).toLocaleString()}</td>
+                  <td className="amount-cell">LKR {(q.estimatedTotal || 0).toLocaleString()}</td>
+                  <td>{q.validityDays} days</td>
+                  <td>{badge(q.status)}</td>
                   <td className="actions-cell">
-                    <button className="action-btn pdf" onClick={() => generateQuotationPDF(quo)} title="Download PDF">
-                      <Download size={16} />
-                    </button>
-                    <button className="action-btn delete" onClick={() => handleDelete(quo._id)} title="Delete">
-                      <Trash2 size={16} />
-                    </button>
+                    <button className="action-btn pdf" onClick={() => generateQuotationPDF(q)} title="Download PDF"><Download size={15} /></button>
+                    <button className="action-btn delete" onClick={() => handleDelete(q._id)} title="Delete"><Trash2 size={15} /></button>
                   </td>
                 </tr>
               ))}
@@ -182,89 +145,120 @@ const QuotationBook = () => {
         </div>
       )}
 
+      {/* Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content invoice-modal">
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content invoice-modal" onClick={e => e.stopPropagation()}>
+
+            {/* Sticky Header */}
             <div className="modal-header">
               <h2>New Service Quotation</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>&times;</button>
+              <button className="close-btn" onClick={() => setShowModal(false)}><span aria-hidden>✕</span></button>
             </div>
+
             <form onSubmit={handleSubmit} className="hire-form">
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Client Name</label>
-                  <input type="text" required value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} placeholder="Enter Client Name" />
-                </div>
-                <div className="form-group">
-                  <label>Client Address</label>
-                  <input type="text" value={formData.clientAddress} onChange={e => setFormData({...formData, clientAddress: e.target.value})} placeholder="Full Address" />
-                </div>
-                <div className="form-group">
-                  <label>Quotation Date</label>
-                  <div className="input-with-icon">
-                    <Calendar size={16} />
-                    <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Validity (Days)</label>
-                  <input type="number" required value={formData.validityDays} onChange={e => setFormData({...formData, validityDays: e.target.value})} />
-                </div>
-              </div>
+              {/* Scrollable Body */}
+              <div className="hire-form-scroll">
 
-              <div className="form-section">
-                <h3><Truck size={16} style={{marginRight: '8px'}}/> Vehicle Specifications</h3>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Vehicle Type</label>
-                    <input type="text" value={formData.vehicleType} onChange={e => setFormData({...formData, vehicleType: e.target.value})} placeholder="Ex: Platform Truck / Crane" />
-                  </div>
-                  <div className="form-group">
-                    <label>Max Height</label>
-                    <input type="text" value={formData.maxHeight} onChange={e => setFormData({...formData, maxHeight: e.target.value})} placeholder="Ex: 20m / 70ft" />
-                  </div>
-                  <div className="form-group">
-                    <label>Max Weight</label>
-                    <input type="text" value={formData.maxWeight} onChange={e => setFormData({...formData, maxWeight: e.target.value})} placeholder="Ex: 750KG" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>Financial Breakdown</h3>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Mandatory / Min Charge</label>
-                    <input type="number" required value={formData.mandatoryCharge} onChange={e => setFormData({...formData, mandatoryCharge: e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label>Transport Charge</label>
-                    <input type="number" value={formData.transportCharge} onChange={e => setFormData({...formData, transportCharge: e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label>Extra Hourly Rate</label>
-                    <input type="number" value={formData.extraHourRate} onChange={e => setFormData({...formData, extraHourRate: e.target.value})} />
+                {/* Client Info */}
+                <div style={{ background:'#f8fafc', border:'1px solid #e8edf4', borderRadius:'10px', padding:'14px 16px', marginBottom:'12px' }}>
+                  <p style={{ fontSize:'0.75rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.06em', color:'#64748b', marginBottom:'12px', marginTop:0 }}>📋 Client Information</p>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Client Name *</label>
+                      <input type="text" name="clientName" value={fd.clientName} onChange={handleChange} required placeholder="Company or client name" />
+                    </div>
+                    <div className="form-group">
+                      <label>Client Address</label>
+                      <input type="text" name="clientAddress" value={fd.clientAddress} onChange={handleChange} placeholder="Full address" />
+                    </div>
+                    <div className="form-group">
+                      <label>Quotation Date *</label>
+                      <div className="input-with-icon">
+                        <Calendar size={15} />
+                        <input type="date" name="date" value={fd.date} onChange={handleChange} required />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Validity (Days)</label>
+                      <input type="number" name="validityDays" value={fd.validityDays} onChange={handleChange} min="1" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="form-group full-width">
-                <label>Terms & Conditions</label>
-                <textarea rows="3" value={formData.termsAndConditions} onChange={e => setFormData({...formData, termsAndConditions: e.target.value})}></textarea>
-              </div>
+                {/* Vehicle Specs */}
+                <div style={{ background:'#f8fafc', border:'1px solid #e8edf4', borderRadius:'10px', padding:'14px 16px', marginBottom:'12px' }}>
+                  <p style={{ fontSize:'0.75rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.06em', color:'#64748b', marginBottom:'12px', marginTop:0, display:'flex', alignItems:'center', gap:'6px' }}><Truck size={13} /> Vehicle Specifications</p>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Vehicle Type</label>
+                      <input type="text" name="vehicleType" value={fd.vehicleType} onChange={handleChange} placeholder="e.g. Platform Truck" />
+                    </div>
+                    <div className="form-group">
+                      <label>Vehicle Number</label>
+                      <input type="text" name="vehicleNo" value={fd.vehicleNo} onChange={handleChange} placeholder="e.g. ZB-0532" />
+                    </div>
+                    <div className="form-group">
+                      <label>Maximum Height</label>
+                      <input type="text" name="maxHeight" value={fd.maxHeight} onChange={handleChange} placeholder="e.g. 20m / 70ft" />
+                    </div>
+                    <div className="form-group">
+                      <label>Maximum Weight</label>
+                      <input type="text" name="maxWeight" value={fd.maxWeight} onChange={handleChange} placeholder="e.g. 750KG" />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-footer">
+                {/* Financial */}
+                <div style={{ background:'#f8fafc', border:'1px solid #e8edf4', borderRadius:'10px', padding:'14px 16px', marginBottom:'12px' }}>
+                  <p style={{ fontSize:'0.75rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.06em', color:'#64748b', marginBottom:'12px', marginTop:0 }}>💰 Pricing</p>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Mandatory / Min Charge (LKR)</label>
+                      <input type="number" name="mandatoryCharge" value={fd.mandatoryCharge} onChange={handleChange} min="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Transport Charge (LKR)</label>
+                      <input type="number" name="transportCharge" value={fd.transportCharge} onChange={handleChange} min="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Extra Hourly Rate (LKR)</label>
+                      <input type="number" name="extraHourRate" value={fd.extraHourRate} onChange={handleChange} min="0" />
+                    </div>
+                    <div className="form-group">
+                      <label>Status</label>
+                      <select name="status" value={fd.status} onChange={handleChange}>
+                        <option value="Draft">Draft</option><option value="Sent">Sent</option>
+                        <option value="Accepted">Accepted</option><option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms */}
+                <div style={{ background:'#f8fafc', border:'1px solid #e8edf4', borderRadius:'10px', padding:'14px 16px' }}>
+                  <p style={{ fontSize:'0.75rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.06em', color:'#64748b', marginBottom:'10px', marginTop:0 }}>📄 Terms & Conditions</p>
+                  <div className="form-group">
+                    <textarea name="termsAndConditions" value={fd.termsAndConditions} onChange={handleChange} rows={4} />
+                  </div>
+                </div>
+
+              </div>{/* end hire-form-scroll */}
+
+              {/* Sticky Footer */}
+              <div className="hire-form-footer">
                 <div className="total-display">
-                  <span>Est. Subtotal:</span>
-                  <strong>Rs. {calculateTotal(formData).toLocaleString()}</strong>
+                  <span>Estimated Total</span>
+                  <strong>LKR {calcTotal(fd).toLocaleString()}</strong>
                 </div>
                 <div className="modal-actions">
                   <button type="button" className="cancel-btn" onClick={() => setShowModal(false)}>Cancel</button>
                   <button type="submit" className="submit-btn" disabled={submitting}>
-                    {submitting ? 'Generating...' : 'Save & Close'}
+                    {submitting ? 'Saving...' : '💾 Save Quotation'}
                   </button>
                 </div>
               </div>
+
             </form>
           </div>
         </div>
