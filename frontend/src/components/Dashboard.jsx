@@ -23,7 +23,7 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
   </div>
 );
 
-const Dashboard = () => {
+const Dashboard = ({ role, name }) => {
   const [data, setData] = useState({ hires: [], diesel: [], salaries: [], payments: [] });
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +43,7 @@ const Dashboard = () => {
           payments: p.data || [] 
         });
       } catch (err) {
-        console.error('Dashboard data fetch failed, using fallbacks');
+        console.error('Dashboard data fetch failed');
       } finally {
         setLoading(false);
       }
@@ -58,6 +58,15 @@ const Dashboard = () => {
     const totalPayments = data.payments.reduce((s, r) => s + (parseFloat(r.paidAmount) || 0), 0);
     const net = totalHire - totalSalary - totalDiesel;
 
+    if (role !== 'Admin' && role !== 'Manager') {
+      return [
+        { id: 1, title: 'My Jobs', value: `${data.hires.length}`, subtext: 'Total completed', icon: TrendingUp, color: '#2563EB' },
+        { id: 2, title: 'Earnings', value: `LKR ${totalSalary.toLocaleString()}`, subtext: 'Total net pay', icon: Wallet, color: '#10B981' },
+        { id: 3, title: 'Fuel Logs', value: `${data.diesel.length}`, subtext: 'Entries made', icon: Fuel, color: '#F59E0B' },
+        { id: 4, title: 'My Efficiency', value: 'High', subtext: 'Performance tracking', icon: BarChart, color: '#EC4899' }
+      ];
+    }
+
     return [
       { id: 1, title: 'Hire Revenue', value: `LKR ${totalHire.toLocaleString()}`, subtext: `${data.hires.length} jobs`, icon: TrendingUp, color: '#2563EB' },
       { id: 2, title: 'Salary Paid', value: `LKR ${totalSalary.toLocaleString()}`, subtext: `${data.salaries.length} records`, icon: Wallet, color: '#10B981' },
@@ -65,12 +74,12 @@ const Dashboard = () => {
       { id: 4, title: 'Payments Received', value: `LKR ${totalPayments.toLocaleString()}`, subtext: `${data.payments.length} transactions`, icon: ArrowDown, color: '#8B5CF6' },
       { id: 5, title: 'Net Profit (Est.)', value: `LKR ${net.toLocaleString()}`, subtext: 'Revenue - Costs', icon: BarChart, color: '#EC4899' }
     ];
-  }, [data]);
+  }, [data, role]);
 
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
-        <h1>Overview · {new Date().toLocaleString('default', { month: 'long' })} {new Date().getFullYear()}</h1>
+        <h1>{(role !== 'Admin' && role !== 'Manager') ? `Hello, ${name}` : 'Business Overview'} · {new Date().toLocaleString('default', { month: 'long' })} {new Date().getFullYear()}</h1>
       </div>
       
       <div className="stats-grid">
@@ -81,18 +90,18 @@ const Dashboard = () => {
 
       <div className="recent-activity">
         <div className="section-header">
-          <h3>Recent Highlights</h3>
+          <h3>{role === 'Employee' ? 'My Recent Assignments' : 'Recent Highlights'}</h3>
         </div>
         <div className="activity-card">
           {loading ? (
-            <div className="loading-state">Loading your stats...</div>
+            <div className="loading-state">Loading logs...</div>
           ) : data.hires.length > 0 ? (
             <div className="recent-list">
-              {data.hires.slice(0, 3).map((h, i) => (
+              {data.hires.slice(0, 5).map((h, i) => (
                 <div key={i} className="activity-item">
-                  <div className="activity-indicator blue"></div>
+                  <div className={`activity-indicator ${role === 'Employee' ? 'green' : 'blue'}`}></div>
                   <div className="activity-details">
-                    <p>New Hire: <strong>{h.client}</strong> for {h.vehicle}</p>
+                    <p>{role === 'Employee' ? `Completed: ${h.client}` : `New Hire: ${h.client}`} for {h.vehicle}</p>
                     <span>{new Date(h.date).toLocaleDateString()}</span>
                   </div>
                   <div className="activity-value">LKR {h.amount}</div>
@@ -102,7 +111,7 @@ const Dashboard = () => {
           ) : (
             <div className="empty-state">
               <div className="empty-icon">📝</div>
-              <p>No activity yet. Start by adding an entry!</p>
+              <p>No activity yet.</p>
             </div>
           )}
         </div>

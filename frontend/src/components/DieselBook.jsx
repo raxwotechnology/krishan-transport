@@ -10,6 +10,9 @@ import './DieselBook.css';
 import VehicleFilter from './VehicleFilter';
 
 const DieselBook = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [dieselRecords, setDieselRecords] = React.useState([]);
   const [vehicles, setVehicles] = React.useState([]);
@@ -17,8 +20,11 @@ const DieselBook = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
+  const [success, setSuccess] = React.useState(null);
 
-  const columns = ['DATE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE', 'ACTION'];
+  const columns = canManage
+    ? ['DATE', 'EMPLOYEE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE', 'ACTION']
+    : ['DATE', 'EMPLOYEE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE'];
 
   React.useEffect(() => {
     fetchRecords();
@@ -41,19 +47,20 @@ const DieselBook = () => {
       const formatted = rawData.map(item => ({
         ...item,
         date: new Date(item.date).toLocaleDateString(),
+        employee: item.employee || '—',
+        total_val: item.total,
         total: `LKR ${Number(item.total).toFixed(2)}`,
-        action: (
+        action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
             <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>
           </div>
-        )
+        ) : null
       }));
       setDieselRecords(formatted);
       setError(null);
     } catch (err) {
-      console.error('Error fetching diesel records:', err);
-      setError('Could not load records. Using offline data.');
+      setError('Connection issue: using local diesel records.');
     } finally {
       setLoading(false);
     }
@@ -67,7 +74,7 @@ const DieselBook = () => {
   // Summary Calculations
   const stats = React.useMemo(() => {
     const totalLiters = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.liters) || 0), 0);
-    const totalCost = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.total?.replace('LKR ', '')) || 0), 0);
+    const totalCost = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.total_val) || 0), 0);
     const avgPrice = totalLiters > 0 ? totalCost / totalLiters : 0;
     return { totalLiters, totalCost, avgPrice };
   }, [filteredRecords]);
@@ -76,14 +83,18 @@ const DieselBook = () => {
     try {
       if (editingItem) {
         await dieselAPI.update(editingItem._id, data);
+        setSuccess('Diesel entry updated!');
       } else {
         await dieselAPI.create(data);
+        setSuccess('Diesel entry added!');
       }
       fetchRecords();
       setIsModalOpen(false);
       setEditingItem(null);
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      alert('Error saving record: ' + err.message);
+      setError(err.response?.data?.message || 'Error saving diesel entry.');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -96,15 +107,21 @@ const DieselBook = () => {
     if (window.confirm('Delete this diesel record?')) {
       try {
         await dieselAPI.delete(id);
+        setSuccess('Entry deleted.');
         fetchRecords();
-      } catch (err) { alert('Error deleting record'); }
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err) {
+        setError('Could not delete record.');
+        setTimeout(() => setError(null), 5000);
+      }
     }
   };
 
   const handleExportPDF = () => {
-    const exportColumns = ['DATE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE'];
+    const exportColumns = ['DATE', 'EMPLOYEE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE'];
     const exportData = filteredRecords.map(r => [
       r.date || '—',
+      r.employee || '—',
       r.vehicle || '—',
       r.liters || '—',
       r.pricePerLiter ? `LKR ${r.pricePerLiter}` : '—',
@@ -130,11 +147,11 @@ const DieselBook = () => {
         </div>
         <div className="summary-item">
           <label>TOTAL COST</label>
-          <h3>LKR {stats.totalCost.toLocaleString()}</h3>
+          <h3 style={{ color: '#EF4444' }}>LKR {stats.totalCost.toLocaleString()}</h3>
         </div>
-        <div className="summary-item">
-          <label>AVG/LITER</label>
-          <h3>LKR {stats.avgPrice.toFixed(2)}</h3>
+        <div className="summary-item" style={{ borderRight: 'none' }}>
+          <label>AVG PRICE / L</label>
+          <h3 style={{ color: '#2563EB' }}>LKR {stats.avgPrice.toFixed(2)}</h3>
         </div>
       </div>
 
@@ -146,19 +163,21 @@ const DieselBook = () => {
 
       <div className="book-filters">
         <div className="search-box">
-          <input type="text" placeholder="Search vehicle..." />
+          <input type="text" placeholder="Filter by vehicle or date..." />
         </div>
         <div className="filter-actions">
-          <select>
-            <option>All Months</option>
-          </select>
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add Entry</button>
+          {canManage && (
+            <button className="add-btn" onClick={() => { setEditingItem(null); setIsModalOpen(true); }}>
+              + Add Entry
+            </button>
+          )}
         </div>
       </div>
 
+      {success && <div className="success-banner">{success}</div>}
       {error && <div className="error-banner">{error}</div>}
 
       <DataTable 

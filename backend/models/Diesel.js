@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const DieselSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
+  employee: { type: String }, // driver who filled diesel
   vehicle: { type: String, required: true },
   liters: { type: Number, required: true },
   pricePerLiter: { type: Number, required: true },

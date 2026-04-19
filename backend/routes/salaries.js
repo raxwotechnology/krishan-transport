@@ -1,17 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const Salary = require('../models/Salary');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const records = await Salary.find().sort({ createdAt: -1 });
+    let query = {};
+    if (req.user.role !== 'Admin' && req.user.role !== 'Manager') {
+      query.employee = req.user.name;
+    }
+    const records = await Salary.find(query).sort({ createdAt: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   const record = new Salary(req.body);
   try {
     const newRecord = await record.save();
@@ -21,7 +26,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     const updated = await Salary.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
@@ -30,7 +35,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     await Salary.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });

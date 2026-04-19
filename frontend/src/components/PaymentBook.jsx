@@ -9,6 +9,9 @@ import '../styles/forms.css';
 import VehicleFilter from './VehicleFilter';
 
 const PaymentBook = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [paymentRecords, setPaymentRecords] = React.useState([]);
   const [vehicles, setVehicles] = React.useState([]);
@@ -17,7 +20,9 @@ const PaymentBook = () => {
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
 
-  const columns = ['DATE', 'CLIENT', 'VEHICLE', 'HIRE AMT', 'PAID AMT', 'BALANCE', 'STATUS', 'ACTION'];
+  const columns = canManage
+    ? ['DATE', 'CLIENT', 'VEHICLE', 'HIRE AMT', 'PAID AMT', 'BALANCE', 'STATUS', 'ACTION']
+    : ['DATE', 'CLIENT', 'VEHICLE', 'HIRE AMT', 'PAID AMT', 'BALANCE', 'STATUS'];
   
   React.useEffect(() => {
     fetchRecords();
@@ -42,12 +47,12 @@ const PaymentBook = () => {
         hireAmount: `LKR ${item.hireAmount}`,
         paidAmount: `LKR ${item.paidAmount}`,
         balance: `LKR ${Number(item.balance).toFixed(2)}`,
-        action: (
+        action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
             <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>
           </div>
-        )
+        ) : null
       }));
       setPaymentRecords(formatted);
       setError(null);
@@ -158,7 +163,9 @@ const PaymentBook = () => {
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add Payment</button>
+          {canManage && (
+            <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add Payment</button>
+          )}
         </div>
       </div>
 

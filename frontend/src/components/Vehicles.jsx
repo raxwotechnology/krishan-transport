@@ -38,12 +38,17 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
 };
 
 const Vehicles = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [vehicles, setVehicles] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [editingVehicle, setEditingVehicle] = React.useState(null);
 
-  const columns = ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'STATUS', 'ACTION'];
+  const columns = canManage 
+    ? ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'STATUS', 'ACTION']
+    : ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'STATUS'];
 
   React.useEffect(() => { fetchVehicles(); }, []);
 
@@ -144,7 +149,9 @@ const Vehicles = () => {
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add New Vehicle</button>
+          {canManage && (
+            <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add New Vehicle</button>
+          )}
         </div>
       </div>
       

@@ -1,17 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const Hire = require('../models/Hire');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const records = await Hire.find().sort({ date: -1 });
+    let query = {};
+    // Restrict access for all roles EXCEPT Admin and Manager
+    if (req.user.role !== 'Admin' && req.user.role !== 'Manager') {
+      query.employee = req.user.name;
+    }
+    const records = await Hire.find(query).sort({ date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const record = new Hire(req.body);
   try {
     const newRecord = await record.save();
@@ -21,7 +27,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     const updated = await Hire.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
@@ -30,7 +36,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     await Hire.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });

@@ -14,8 +14,8 @@ import {
 import './Sidebar.css';
 import logo from '../logo.png';
 
-const Sidebar = ({ activeTab, setActiveTab, handleLogout }) => {
-  const menuItems = [
+const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName }) => {
+  const allMenuItems = [
     { id: 'dashboard',  label: 'Dashboard',        icon: LayoutDashboard },
     { id: 'hires',      label: 'Hire Book',         icon: Truck },
     { id: 'salaries',   label: 'Salary Book',       icon: Contact },
@@ -27,6 +27,14 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout }) => {
     { id: 'reports',    label: 'Financial Report',   icon: FileBarChart },
   ];
 
+  const menuItems = allMenuItems.filter(item => {
+    // Treat everyone EXCEPT Admin and Manager as restricted employees
+    if (role !== 'Admin' && role !== 'Manager') {
+      return ['dashboard', 'hires', 'diesel', 'vehicles'].includes(item.id);
+    }
+    return true; // Manager and Admin see all
+  });
+
   return (
     <div className="sidebar">
       <div className="sidebar-logo">
@@ -36,6 +44,14 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout }) => {
         </div>
       </div>
       
+      <div className="user-profile-simple">
+        <div className="profile-initials">{(userName || role || 'U')[0].toUpperCase()}</div>
+        <div className="profile-info">
+          <p className="profile-name">{userName || 'User'}</p>
+          <p className="profile-role">{role || 'Role'}</p>
+        </div>
+      </div>
+
       <nav className="sidebar-nav">
         {menuItems.map((item) => {
           const Icon = item.icon;

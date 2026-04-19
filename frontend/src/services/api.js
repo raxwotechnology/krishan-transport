@@ -10,6 +10,17 @@ const api = axios.create({
   }
 });
 
+// Interceptor to add auth token to headers
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('kt_auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 // Fallback logic for LocalStorage
 const getFallback = (key) => JSON.parse(localStorage.getItem(key) || '[]');
 const setFallback = (key, data) => localStorage.setItem(key, JSON.stringify(data));
@@ -18,27 +29,31 @@ const wrapAPI = (endpoint, storageKey) => ({
   get: async () => {
     try {
       const res = await api.get(endpoint);
-      setFallback(storageKey, res.data); // Update cache
+      setFallback(storageKey, res.data);
       return res;
     } catch (err) {
-      console.warn(`Backend offline for ${endpoint}, using localStorage fallback.`);
-      return { data: getFallback(storageKey) };
+      if (!err.response) {
+        console.warn(`Backend offline for ${endpoint}, using localStorage fallback.`);
+        return { data: getFallback(storageKey) };
+      }
+      throw err;
     }
   },
   create: async (data) => {
     try {
       const res = await api.post(endpoint, data);
-      // Sync local after success
       const current = getFallback(storageKey);
       setFallback(storageKey, [...current, res.data]);
       return res;
     } catch (err) {
-      console.warn(`Backend offline for ${endpoint}, saving to localStorage only.`);
-      const current = getFallback(storageKey);
-      const newData = { ...data, _id: Date.now().toString(), createdAt: new Date().toISOString() };
-      const updated = [...current, newData];
-      setFallback(storageKey, updated);
-      return { data: newData };
+      if (!err.response) {
+        console.warn(`Backend offline for ${endpoint}, saving to localStorage only.`);
+        const newData = { ...data, _id: Date.now().toString(), createdAt: new Date().toISOString() };
+        const current = getFallback(storageKey);
+        setFallback(storageKey, [...current, newData]);
+        return { data: newData };
+      }
+      throw err;
     }
   },
   update: async (id, data) => {
@@ -48,15 +63,17 @@ const wrapAPI = (endpoint, storageKey) => ({
       setFallback(storageKey, current.map(item => item._id === id ? res.data : item));
       return res;
     } catch (err) {
-      console.warn(`Backend offline for update ${endpoint}, updating localStorage.`);
-      const current = getFallback(storageKey);
-      const updated = current.map(item => item._id === id ? { ...item, ...data } : item);
-      setFallback(storageKey, updated);
-      return { data: { ...data, _id: id } };
+      if (!err.response) {
+        console.warn(`Backend offline for update ${endpoint}, updating localStorage.`);
+        const current = getFallback(storageKey);
+        const updated = current.map(item => item._id === id ? { ...item, ...data } : item);
+        setFallback(storageKey, updated);
+        return { data: { ...data, _id: id } };
+      }
+      throw err;
     }
   },
   delete: async (id) => {
-    console.log(`[API] Deleting from ${endpoint} with ID:`, id);
     try {
       const res = await api.delete(`${endpoint}/${id}`);
       const current = getFallback(storageKey);
@@ -66,18 +83,20 @@ const wrapAPI = (endpoint, storageKey) => ({
         return itemId !== targetId;
       });
       setFallback(storageKey, filtered);
-      console.log(`[API] Success deleting ${endpoint} from backend and local cache`);
       return res;
     } catch (err) {
-      console.warn(`[API] Backend offline or error for delete ${endpoint}, removing from localStorage. Error:`, err.message);
-      const current = getFallback(storageKey);
-      const filtered = current.filter(item => {
-        const itemId = item._id ? item._id.toString() : '';
-        const targetId = id ? id.toString() : '';
-        return itemId !== targetId;
-      });
-      setFallback(storageKey, filtered);
-      return { data: { success: true } };
+      if (!err.response) {
+        console.warn(`[API] Backend offline for delete ${endpoint}, removing from localStorage.`);
+        const current = getFallback(storageKey);
+        const filtered = current.filter(item => {
+          const itemId = item._id ? item._id.toString() : '';
+          const targetId = id ? id.toString() : '';
+          return itemId !== targetId;
+        });
+        setFallback(storageKey, filtered);
+        return { data: { success: true } };
+      }
+      throw err;
     }
   }
 });

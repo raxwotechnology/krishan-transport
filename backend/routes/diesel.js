@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const Diesel = require('../models/Diesel');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
-// Get all records
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const records = await Diesel.find().sort({ date: -1 });
+    let query = {};
+    if (req.user.role !== 'Admin' && req.user.role !== 'Manager') {
+      query.employee = req.user.name;
+    }
+    const records = await Diesel.find(query).sort({ date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -13,7 +17,7 @@ router.get('/', async (req, res) => {
 });
 
 // Add new record
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const record = new Diesel(req.body);
   try {
     const newRecord = await record.save();
@@ -24,7 +28,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update record
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     const updatedRecord = await Diesel.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updatedRecord);
@@ -34,7 +38,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete record
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     await Diesel.findByIdAndDelete(req.params.id);
     res.json({ message: 'Record deleted' });

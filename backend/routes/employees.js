@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Employee = require('../models/Employee');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
 // GET all employees
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const records = await Employee.find().sort({ name: 1 });
     res.json(records);
@@ -13,8 +14,13 @@ router.get('/', async (req, res) => {
 });
 
 // POST create employee
-router.post('/', async (req, res) => {
-  const record = new Employee(req.body);
+router.post('/', authMiddleware, authorizeRoles('Admin'), async (req, res, next) => {
+  const data = { ...req.body };
+  if (!data.username || (typeof data.username === 'string' && data.username.trim() === '')) {
+    delete data.username;
+  }
+  
+  const record = new Employee(data);
   try {
     const newRecord = await record.save();
     res.status(201).json(newRecord);
@@ -24,9 +30,30 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update employee
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin'), async (req, res, next) => {
   try {
-    const updated = await Employee.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+    const data = { ...req.body };
+    if (data.hasOwnProperty('username') && (!data.username || (typeof data.username === 'string' && data.username.trim() === ''))) {
+      employee.set('username', undefined);
+    } else if (data.username) {
+      employee.username = data.username.trim();
+    }
+
+    const fields = ['name', 'nic', 'role', 'contact', 'joinedDate', 'status'];
+    fields.forEach(field => {
+      if (data.hasOwnProperty(field)) {
+        employee[field] = data[field];
+      }
+    });
+
+    if (data.password && (typeof data.password === 'string' && data.password.trim() !== '')) {
+      employee.password = data.password;
+    }
+
+    const updated = await employee.save();
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -34,7 +61,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE employee
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin'), async (req, res, next) => {
   try {
     await Employee.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });

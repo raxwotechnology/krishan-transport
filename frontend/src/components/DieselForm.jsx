@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { vehicleAPI } from '../services/api';
+import { vehicleAPI, employeeAPI } from '../services/api';
 
 const DieselForm = ({ onSubmit, onCancel, initialData }) => {
   const [vehicles, setVehicles] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [formData, setFormData] = useState(initialData ? {
     ...initialData,
     date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
   } : {
     date: new Date().toISOString().split('T')[0],
+    employee: '',
     vehicle: '',
     liters: '',
     pricePerLiter: '',
@@ -16,13 +18,14 @@ const DieselForm = ({ onSubmit, onCancel, initialData }) => {
   });
 
   useEffect(() => {
-    const fetchVehicles = async () => {
+    const fetchData = async () => {
       try {
-        const res = await vehicleAPI.get();
-        setVehicles(Array.isArray(res.data) ? res.data : []);
+        const [vRes, eRes] = await Promise.all([vehicleAPI.get(), employeeAPI.get()]);
+        setVehicles(Array.isArray(vRes.data) ? vRes.data : []);
+        setEmployees(Array.isArray(eRes.data) ? eRes.data.filter(e => e.status === 'Active') : []);
       } catch (err) { console.error(err); }
     };
-    fetchVehicles();
+    fetchData();
   }, []);
 
   const handleChange = (e) => {
@@ -41,6 +44,17 @@ const DieselForm = ({ onSubmit, onCancel, initialData }) => {
         <label>Date</label>
         <input type="date" name="date" value={formData.date} onChange={handleChange} required />
       </div>
+
+      <div className="form-group">
+        <label>Employee (Filled By)</label>
+        <select name="employee" value={formData.employee || ''} onChange={handleChange}>
+          <option value="">— Select Employee —</option>
+          {employees.map(emp => (
+            <option key={emp._id} value={emp.name}>{emp.name} ({emp.role})</option>
+          ))}
+        </select>
+      </div>
+
       <div className="form-group">
         <label>Vehicle Number</label>
         <select name="vehicle" value={formData.vehicle} onChange={handleChange} required>

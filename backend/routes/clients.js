@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Client = require('../models/Client');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const records = await Client.find().sort({ name: 1 });
     res.json(records);
@@ -11,7 +12,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   const record = new Client(req.body);
   try {
     const newRecord = await record.save();
@@ -21,7 +22,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     const updated = await Client.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updated);
@@ -30,7 +31,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     await Client.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });

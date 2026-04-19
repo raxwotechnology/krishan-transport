@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { ArrowLeft } from 'lucide-react';
 import logo from '../logo.png';
 import './Login.css';
 
-const Login = ({ onLoginSuccess }) => {
+const Login = ({ onLoginSuccess, roleContext, onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -17,6 +18,8 @@ const Login = ({ onLoginSuccess }) => {
       const res = await axios.post('http://localhost:5000/api/auth/login', { username, password });
       if (res.data && res.data.token) {
         localStorage.setItem('kt_auth_token', res.data.token);
+        localStorage.setItem('kt_user_role', res.data.user.role);
+        localStorage.setItem('kt_user_name', res.data.user.name);
         onLoginSuccess();
       }
     } catch (err) {
@@ -29,12 +32,15 @@ const Login = ({ onLoginSuccess }) => {
   return (
     <div className="login-container">
       <div className="login-card">
+        <button className="back-link" onClick={onBack}>
+          <ArrowLeft size={16} /> Back to Selection
+        </button>
         <div className="login-logo-wrapper">
           <img src={logo} alt="Krishan Transport Logo" className="login-logo" />
         </div>
         <div className="login-header">
-          <h2>Admin Access</h2>
-          <p>Sign in to manage the transport system</p>
+          <h2>{roleContext} Portal</h2>
+          <p>Login with your {roleContext?.toLowerCase()} credentials</p>
         </div>
         <form className="login-form" onSubmit={handleLogin}>
           {error && <div className="login-error">{error}</div>}
@@ -44,7 +50,7 @@ const Login = ({ onLoginSuccess }) => {
               type="text" 
               value={username} 
               onChange={e => setUsername(e.target.value)} 
-              placeholder="Enter admin username"
+              placeholder="Enter your username"
               required 
             />
           </div>
@@ -54,12 +60,12 @@ const Login = ({ onLoginSuccess }) => {
               type="password" 
               value={password} 
               onChange={e => setPassword(e.target.value)} 
-              placeholder="Enter admin password"
+              placeholder="Enter your password"
               required 
             />
           </div>
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? 'Authenticating...' : 'Sign In'}
+            {loading ? 'Authenticating...' : `Sign In as ${roleContext}`}
           </button>
         </form>
       </div>

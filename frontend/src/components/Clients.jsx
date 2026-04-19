@@ -8,13 +8,18 @@ import { Download } from 'lucide-react';
 import '../styles/forms.css';
 
 const Clients = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [clientRecords, setClientRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
 
-  const columns = ['CLIENT NAME', 'CONTACT', 'TOTAL HIRES', 'OUTSTANDING', 'STATUS', 'ACTION'];
+  const columns = canManage
+    ? ['CLIENT NAME', 'CONTACT', 'TOTAL HIRES', 'OUTSTANDING', 'STATUS', 'ACTION']
+    : ['CLIENT NAME', 'CONTACT', 'TOTAL HIRES', 'OUTSTANDING', 'STATUS'];
   
   React.useEffect(() => {
     fetchRecords();
@@ -26,12 +31,12 @@ const Clients = () => {
       const formatted = response.data.map(item => ({
         ...item,
         outstanding: `LKR ${item.outstanding}`,
-        action: (
+        action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
             <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>
           </div>
-        )
+        ) : null
       }));
       setClientRecords(formatted);
       setLoading(false);
@@ -110,11 +115,13 @@ const Clients = () => {
         <div className="search-box">
           <input type="text" placeholder="Search customer..." />
         </div>
-        <div className="filter-actions">
+        <div className="filter-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '1rem' }}>
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ New Client</button>
+          {canManage && (
+            <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add New Client</button>
+          )}
         </div>
       </div>
 

@@ -8,15 +8,21 @@ import { Download } from 'lucide-react';
 import '../styles/forms.css';
 
 const Employees = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [records, setRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const [success, setSuccess] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [roleFilter, setRoleFilter] = React.useState('All');
 
-  const columns = ['NAME', 'NIC', 'ROLE', 'CONTACT', 'JOINED', 'STATUS', 'ACTION'];
+  const columns = canManage
+    ? ['NAME', 'NIC', 'ROLE', 'CONTACT', 'JOINED', 'STATUS', 'ACTION']
+    : ['NAME', 'NIC', 'ROLE', 'CONTACT', 'JOINED', 'STATUS'];
 
   React.useEffect(() => {
     fetchRecords();
@@ -30,6 +36,7 @@ const Employees = () => {
       const formatted = raw.map(item => ({
         ...item,
         joined: item.joinedDate ? new Date(item.joinedDate).toLocaleDateString() : '—',
+        status_text: item.status,
         status: (
           <span className={`status-badge ${item.status === 'Active' ? 'status-active' : 'status-inactive'}`}>
             {item.status}
@@ -45,7 +52,7 @@ const Employees = () => {
       setRecords(formatted);
       setError(null);
     } catch (err) {
-      setError('Could not load employees.');
+      setError('Could not load employees from server.');
     } finally {
       setLoading(false);
     }
@@ -55,14 +62,18 @@ const Employees = () => {
     try {
       if (editingItem) {
         await employeeAPI.update(editingItem._id, data);
+        setSuccess('Employee updated successfully!');
       } else {
         await employeeAPI.create(data);
+        setSuccess('Employee registered successfully!');
       }
       fetchRecords();
       setIsModalOpen(false);
       setEditingItem(null);
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      alert('Error saving employee: ' + err.message);
+      setError(err.response?.data?.message || 'Error saving employee details.');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -75,9 +86,12 @@ const Employees = () => {
     if (window.confirm('Delete this employee record?')) {
       try {
         await employeeAPI.delete(id);
+        setSuccess('Employee deleted successfully.');
         fetchRecords();
+        setTimeout(() => setSuccess(null), 3000);
       } catch (err) {
-        alert('Error deleting employee');
+        setError('Error deleting employee');
+        setTimeout(() => setError(null), 5000);
       }
     }
   };
@@ -90,7 +104,7 @@ const Employees = () => {
       r.role || '—',
       r.contact || '—',
       r.joined || '—',
-      (r.status && r.status.props) ? r.status.props.children : (r.status || '—')
+      r.status_text || '—'
     ]);
     
     generatePDFReport({
@@ -114,12 +128,9 @@ const Employees = () => {
 
   const stats = React.useMemo(() => {
     const total = records.length;
-    const active = records.filter(r => {
-      // status is a JSX element, check original data
-      return true; // count all, we'll count from raw
-    }).length;
+    const active = records.filter(r => r.status_text === 'Active').length;
     const drivers = records.filter(r => r.role === 'Driver').length;
-    return { total, drivers };
+    return { total, drivers, active };
   }, [records]);
 
   return (
@@ -130,12 +141,12 @@ const Employees = () => {
           <h3>{stats.total}</h3>
         </div>
         <div className="summary-item">
+          <label>ACTIVE STAFF</label>
+          <h3 style={{ color: '#10B981' }}>{stats.active}</h3>
+        </div>
+        <div className="summary-item" style={{ borderRight: 'none' }}>
           <label>DRIVERS</label>
           <h3>{stats.drivers}</h3>
-        </div>
-        <div className="summary-item">
-          <label>OTHER STAFF</label>
-          <h3>{stats.total - stats.drivers}</h3>
         </div>
       </div>
 
@@ -154,6 +165,7 @@ const Employees = () => {
             <option value="Driver">Driver</option>
             <option value="Helper">Helper</option>
             <option value="Mechanic">Mechanic</option>
+            <option value="Manager">Manager</option>
             <option value="Admin">Admin</option>
             <option value="Other">Other</option>
           </select>
@@ -166,6 +178,7 @@ const Employees = () => {
         </div>
       </div>
 
+      {success && <div className="success-banner">{success}</div>}
       {error && <div className="error-banner">{error}</div>}
 
       <DataTable

@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Vehicle = require('../models/Vehicle');
+const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
 // Get all vehicles
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const vehicles = await Vehicle.find().sort({ number: 1 });
     res.json(vehicles);
@@ -13,7 +14,7 @@ router.get('/', async (req, res) => {
 });
 
 // Add new vehicle
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   const vehicle = new Vehicle(req.body);
   try {
     const newVehicle = await vehicle.save();
@@ -24,7 +25,7 @@ router.post('/', async (req, res) => {
 });
 
 // Delete vehicle
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
     await Vehicle.findByIdAndDelete(req.params.id);
     res.json({ message: 'Vehicle deleted' });

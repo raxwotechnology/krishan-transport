@@ -9,6 +9,9 @@ import '../styles/forms.css';
 import VehicleFilter from './VehicleFilter';
 
 const HireBook = () => {
+  const userRole = localStorage.getItem('kt_user_role');
+  const canManage = ['Admin', 'Manager'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [hireRecords, setHireRecords] = React.useState([]);
   const [vehicles, setVehicles] = React.useState([]);
@@ -16,8 +19,12 @@ const HireBook = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
+  const [success, setSuccess] = React.useState(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
-  const columns = ['DATE', 'CLIENT', 'EMPLOYEE', 'VEHICLE', 'LOCATION', 'AMOUNT', 'COMMISSION', 'BILL#', 'ACTION'];
+  const columns = canManage
+    ? ['DATE', 'CLIENT', 'EMPLOYEE', 'VEHICLE', 'LOCATION', 'AMOUNT', 'COMMISSION', 'BILL#', 'ACTION']
+    : ['DATE', 'CLIENT', 'EMPLOYEE', 'VEHICLE', 'LOCATION', 'AMOUNT', 'COMMISSION', 'BILL#'];
   
   React.useEffect(() => {
     fetchRecords();
@@ -40,6 +47,8 @@ const HireBook = () => {
         ...item,
         date:       new Date(item.date).toLocaleDateString(),
         employee:   item.employee || '—',
+        amount_val: item.amount,
+        comm_val:   item.commission,
         amount:     `LKR ${item.amount}`,
         commission: `LKR ${item.commission}`,
         action: (
@@ -52,22 +61,27 @@ const HireBook = () => {
       setHireRecords(formatted);
       setError(null);
     } catch (err) {
-      console.error('Error fetching hires:', err);
-      setError('Using offline hire records.');
+      setError('Connection issue: using local hire records.');
     } finally {
       setLoading(false);
     }
   };
 
   const filteredRecords = React.useMemo(() => {
-    if (!selectedVehicle) return hireRecords;
-    return hireRecords.filter(r => r.vehicle === selectedVehicle);
-  }, [hireRecords, selectedVehicle]);
+    return hireRecords.filter(r => {
+      const matchVehicle = !selectedVehicle || r.vehicle === selectedVehicle;
+      const matchSearch = !searchQuery || 
+        r.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.billNumber?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchVehicle && matchSearch;
+    });
+  }, [hireRecords, selectedVehicle, searchQuery]);
 
   const stats = React.useMemo(() => {
     const totalJobs = filteredRecords.length;
-    const totalRevenue = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.amount?.replace('LKR ', '')) || 0), 0);
-    const totalComm = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.commission?.replace('LKR ', '')) || 0), 0);
+    const totalRevenue = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.amount_val) || 0), 0);
+    const totalComm = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.comm_val) || 0), 0);
     return { totalJobs, totalRevenue, totalComm, net: totalRevenue - totalComm };
   }, [filteredRecords]);
 
@@ -75,14 +89,18 @@ const HireBook = () => {
     try {
       if (editingItem) {
         await hireAPI.update(editingItem._id, data);
+        setSuccess('Hire record updated!');
       } else {
         await hireAPI.create(data);
+        setSuccess('New hire job added!');
       }
       fetchRecords();
       setIsModalOpen(false);
       setEditingItem(null);
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      alert('Error saving job: ' + err.message);
+      setError(err.response?.data?.message || 'Error saving hire details.');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -95,8 +113,13 @@ const HireBook = () => {
     if (window.confirm('Delete this hire record?')) {
       try {
         await hireAPI.delete(id);
+        setSuccess('Record deleted.');
         fetchRecords();
-      } catch (err) { alert('Error deleting record'); }
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err) {
+        setError('Could not delete record.');
+        setTimeout(() => setError(null), 5000);
+      }
     }
   };
 
@@ -130,15 +153,15 @@ const HireBook = () => {
         </div>
         <div className="summary-item">
           <label>TOTAL REVENUE</label>
-          <h3>LKR {stats.totalRevenue.toLocaleString()}</h3>
+          <h3 style={{ color: '#2563EB' }}>LKR {stats.totalRevenue.toLocaleString()}</h3>
         </div>
         <div className="summary-item">
           <label>COMMISSIONS</label>
-          <h3>LKR {stats.totalComm.toLocaleString()}</h3>
+          <h3 style={{ color: '#F59E0B' }}>LKR {stats.totalComm.toLocaleString()}</h3>
         </div>
-        <div className="summary-item">
-          <label>NET</label>
-          <h3>LKR {stats.net.toLocaleString()}</h3>
+        <div className="summary-item" style={{ borderRight: 'none' }}>
+          <label>NET REVENUE</label>
+          <h3 style={{ color: '#10B981' }}>LKR {stats.net.toLocaleString()}</h3>
         </div>
       </div>
 
@@ -150,19 +173,24 @@ const HireBook = () => {
 
       <div className="book-filters">
         <div className="search-box">
-          <input type="text" placeholder="Search client, vehicle..." />
+          <input 
+            type="text" 
+            placeholder="Search client, bill, location..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
         <div className="filter-actions">
-          <select>
-            <option>All Months</option>
-          </select>
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add Job</button>
+          <button className="add-btn" onClick={() => { setEditingItem(null); setIsModalOpen(true); }}>
+            + Add Job
+          </button>
         </div>
       </div>
 
+      {success && <div className="success-banner">{success}</div>}
       {error && <div className="error-banner">{error}</div>}
 
       <DataTable 

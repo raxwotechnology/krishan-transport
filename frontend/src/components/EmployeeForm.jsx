@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData, setFormData] = useState(initialData ? {
     ...initialData,
+    username: initialData.username || '',
+    password: '', // Don't pre-fill password for security
     joinedDate: initialData.joinedDate
       ? new Date(initialData.joinedDate).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0]
@@ -12,7 +14,9 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
     role: 'Driver',
     contact: '',
     joinedDate: new Date().toISOString().split('T')[0],
-    status: 'Active'
+    status: 'Active',
+    username: '',
+    password: ''
   });
 
   const handleChange = (e) => {
@@ -21,7 +25,12 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Only include password if it's set (useful for edits)
+    const submittableData = { ...formData };
+    if (!submittableData.password && initialData) {
+      delete submittableData.password;
+    }
+    onSubmit(submittableData);
   };
 
   return (
@@ -57,6 +66,7 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
             <option value="Driver">Driver</option>
             <option value="Helper">Helper</option>
             <option value="Mechanic">Mechanic</option>
+            <option value="Manager">Manager</option>
             <option value="Admin">Admin</option>
             <option value="Other">Other</option>
           </select>
@@ -67,6 +77,34 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
+        </div>
+      </div>
+
+      <div className="form-section-divider">
+        <span>Login Credentials</span>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Username</label>
+          <input
+            type="text"
+            name="username"
+            value={formData.username}
+            onChange={handleChange}
+            placeholder="System login username"
+          />
+        </div>
+        <div className="form-group">
+          <label>Password {initialData && '(leave blank to keep current)'}</label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="System login password"
+            required={!initialData}
+          />
         </div>
       </div>
 
