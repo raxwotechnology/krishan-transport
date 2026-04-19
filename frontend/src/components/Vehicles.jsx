@@ -3,21 +3,33 @@ import DataTable from './DataTable';
 import Modal from './Modal';
 import { vehicleAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
-import { Download } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
+import '../styles/books.css';
 
 const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
-  const [formData, setFormData] = React.useState(initialData || { number: '', model: '', type: '' });
+  const [formData, setFormData] = React.useState(initialData || { number: '', model: '', type: '', status: 'Active' });
   return (
     <form className="entry-form" onSubmit={(e) => { e.preventDefault(); onSubmit(formData); }}>
       <div className="form-group">
         <label>Vehicle Number (Required)</label>
-        <input type="text" placeholder="e.g. WP-1234" required value={formData.number} onChange={e => setFormData({...formData, number: e.target.value.toUpperCase()})} />
+        <input 
+          type="text" 
+          placeholder="e.g. WP-1234" 
+          required 
+          value={formData.number} 
+          onChange={e => setFormData({...formData, number: e.target.value.toUpperCase()})} 
+        />
       </div>
       <div className="form-row">
         <div className="form-group">
           <label>Model</label>
-          <input type="text" placeholder="e.g. Isuzu Elf" value={formData.model} onChange={e => setFormData({...formData, model: e.target.value})} />
+          <input 
+            type="text" 
+            placeholder="e.g. Isuzu Elf" 
+            value={formData.model} 
+            onChange={e => setFormData({...formData, model: e.target.value})} 
+          />
         </div>
         <div className="form-group">
           <label>Type</label>
@@ -26,9 +38,19 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
             <option value="Truck">Truck</option>
             <option value="Van">Van</option>
             <option value="Prime Mover">Prime Mover</option>
+            <option value="Crane">Crane</option>
+            <option value="Other">Other</option>
           </select>
         </div>
       </div>
+       <div className="form-group">
+          <label>Status</label>
+          <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+            <option value="Active">Active</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
       <div className="form-actions">
         <button type="button" className="secondary-btn" onClick={onCancel}>Cancel</button>
         <button type="submit" className="primary-btn">{initialData ? 'Update Vehicle' : 'Add Vehicle'}</button>
@@ -42,9 +64,10 @@ const Vehicles = () => {
   const canManage = ['Admin', 'Manager'].includes(userRole);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [vehicles, setVehicles] = React.useState([]);
+  const [vehicleRecords, setVehicleRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [editingVehicle, setEditingVehicle] = React.useState(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const columns = canManage 
     ? ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'STATUS', 'ACTION']
@@ -57,31 +80,44 @@ const Vehicles = () => {
     try {
       const res = await vehicleAPI.get();
       const raw = Array.isArray(res.data) ? res.data : [];
-      setVehicles(raw.map(v => ({
-        number: v.number,
-        model: v.model || '-',
-        type: v.type || '-',
-        status: <span className="status-chip active">{v.status}</span>,
-        action: (
+      const formatted = raw.map(v => ({
+        ...v,
+        number: v.number || '—',
+        model: v.model || '—',
+        type: v.type || '—',
+        status_text: v.status || 'Active',
+        status: (
+          <span className={`status-badge ${v.status === 'Active' ? 'status-active' : 'status-inactive'}`}>
+            {v.status || 'Active'}
+          </span>
+        ),
+        action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(v)}>Edit</button>
             <button className="delete-btn" onClick={() => handleDelete(v._id)}>Delete</button>
           </div>
-        )
-      })));
+        ) : null
+      }));
+      setVehicleRecords(formatted);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
+  const filteredRecords = React.useMemo(() => {
+    return vehicleRecords.filter(r => {
+      return !searchQuery || 
+        (r.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.model  || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.type   || '').toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [vehicleRecords, searchQuery]);
+
   const stats = React.useMemo(() => {
     return {
-      total: vehicles.length,
-      active: vehicles.filter(v => 
-        (typeof v.status === 'string' && v.status === 'Active') || 
-        (v.status && v.status.props && v.status.props.children === 'Active')
-      ).length
+      total: filteredRecords.length,
+      active: filteredRecords.filter(v => v.status_text === 'Active').length
     };
-  }, [vehicles]);
+  }, [filteredRecords]);
 
   const handleAdd = async (data) => {
     try {
@@ -112,11 +148,11 @@ const Vehicles = () => {
 
   const handleExportPDF = () => {
     const exportColumns = ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'STATUS'];
-    const exportData = vehicles.map(v => [
+    const exportData = filteredRecords.map(v => [
       v.number || '—',
       v.model || '—',
       v.type || '—',
-      (v.status && v.status.props) ? v.status.props.children : (v.status || '—')
+      v.status_text || '—'
     ]);
     
     generatePDFReport({
@@ -134,28 +170,40 @@ const Vehicles = () => {
           <label>TOTAL FLEET</label>
           <h3>{stats.total} Vehicles</h3>
         </div>
-        <div className="summary-item">
+        <div className="summary-item" style={{ borderRight: 'none' }}>
           <label>ACTIVE</label>
-          <h3>{stats.active}</h3>
-        </div>
-        <div className="summary-item">
-          <label>STATUS</label>
-          <h3>{stats.total > 0 ? 'Operational' : 'No Data'}</h3>
+          <h3 style={{ color: '#10B981' }}>{stats.active} Operating</h3>
         </div>
       </div>
 
       <div className="book-filters">
+        <div className="search-box">
+          <Search className="search-icon" size={16} />
+          <input 
+            type="text" 
+            placeholder="Search by number, model, type..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
         <div className="filter-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '1rem' }}>
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
           {canManage && (
-            <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add New Vehicle</button>
+            <button className="add-btn" onClick={() => { setEditingVehicle(null); setIsModalOpen(true); }}>
+              + Register Vehicle
+            </button>
           )}
         </div>
       </div>
       
-      <DataTable columns={columns} data={vehicles} loading={loading} emptyMessage="No vehicles registered." />
+      <DataTable 
+        columns={columns} 
+        data={filteredRecords} 
+        loading={loading} 
+        emptyMessage="No vehicles registered." 
+      />
 
       <Modal 
         isOpen={isModalOpen} 

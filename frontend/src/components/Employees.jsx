@@ -4,8 +4,9 @@ import Modal from './Modal';
 import EmployeeForm from './EmployeeForm';
 import { employeeAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
-import { Download } from 'lucide-react';
+import { Download, Search, Users, Activity, ShieldCheck } from 'lucide-react';
 import '../styles/forms.css';
+import '../styles/books.css';
 
 const Employees = () => {
   const userRole = localStorage.getItem('kt_user_role');
@@ -35,24 +36,28 @@ const Employees = () => {
       const raw = Array.isArray(response.data) ? response.data : [];
       const formatted = raw.map(item => ({
         ...item,
+        name: item.name || '—',
+        nic: item.nic || '—',
+        role: item.role || '—',
+        contact: item.contact || '—',
         joined: item.joinedDate ? new Date(item.joinedDate).toLocaleDateString() : '—',
-        status_text: item.status,
+        status_text: item.status || 'Active',
         status: (
           <span className={`status-badge ${item.status === 'Active' ? 'status-active' : 'status-inactive'}`}>
-            {item.status}
+            {item.status || 'Active'}
           </span>
         ),
-        action: (
+        action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
             <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>
           </div>
-        )
+        ) : null
       }));
       setRecords(formatted);
       setError(null);
     } catch (err) {
-      setError('Could not load employees from server.');
+      setError('Connection issue: could not load employee directory.');
     } finally {
       setLoading(false);
     }
@@ -62,17 +67,17 @@ const Employees = () => {
     try {
       if (editingItem) {
         await employeeAPI.update(editingItem._id, data);
-        setSuccess('Employee updated successfully!');
+        setSuccess('Employee record updated successfully.');
       } else {
         await employeeAPI.create(data);
-        setSuccess('Employee registered successfully!');
+        setSuccess('New employee registered successfully.');
       }
       fetchRecords();
       setIsModalOpen(false);
       setEditingItem(null);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Error saving employee details.');
+      setError(err.response?.data?.message || 'Error processing request.');
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -83,14 +88,14 @@ const Employees = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Delete this employee record?')) {
+    if (window.confirm('Are you sure you want to delete this employee?')) {
       try {
         await employeeAPI.delete(id);
-        setSuccess('Employee deleted successfully.');
+        setSuccess('Employee removed.');
         fetchRecords();
         setTimeout(() => setSuccess(null), 3000);
       } catch (err) {
-        setError('Error deleting employee');
+        setError('Error deleting record.');
         setTimeout(() => setError(null), 5000);
       }
     }
@@ -108,7 +113,7 @@ const Employees = () => {
     ]);
     
     generatePDFReport({
-      title: 'Employees Report',
+      title: 'Employee Directory Report',
       columns: exportColumns,
       data: exportData,
       filename: `Employees_Report_${new Date().toISOString().split('T')[0]}.pdf`
@@ -146,15 +151,16 @@ const Employees = () => {
         </div>
         <div className="summary-item" style={{ borderRight: 'none' }}>
           <label>DRIVERS</label>
-          <h3>{stats.drivers}</h3>
+          <h3 style={{ color: '#2563EB' }}>{stats.drivers}</h3>
         </div>
       </div>
 
       <div className="book-filters">
         <div className="search-box">
+          <Search className="search-icon" size={16} />
           <input
             type="text"
-            placeholder="Search name, NIC, contact..."
+            placeholder="Search by name, NIC, or contact..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -172,9 +178,11 @@ const Employees = () => {
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
-          <button className="add-btn" onClick={() => { setEditingItem(null); setIsModalOpen(true); }}>
-            + Register Employee
-          </button>
+          {canManage && (
+            <button className="add-btn" onClick={() => { setEditingItem(null); setIsModalOpen(true); }}>
+              + Register Employee
+            </button>
+          )}
         </div>
       </div>
 
@@ -185,13 +193,13 @@ const Employees = () => {
         columns={columns}
         data={filteredRecords}
         loading={loading}
-        emptyMessage={loading ? 'Loading...' : 'No employee records found.'}
+        emptyMessage={loading ? 'Loading employees...' : 'No employees found matching the criteria.'}
       />
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditingItem(null); }}
-        title={editingItem ? 'Edit Employee' : 'Register New Employee'}
+        title={editingItem ? 'Edit Employee Record' : 'Register New Employee'}
       >
         <EmployeeForm
           onSubmit={handleSave}

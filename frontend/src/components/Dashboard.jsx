@@ -110,7 +110,7 @@ const Dashboard = ({ role, name }) => {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">📝</div>
+              <div className="empty-icon"></div>
               <p>No activity yet.</p>
             </div>
           )}

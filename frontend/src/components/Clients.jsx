@@ -4,8 +4,9 @@ import Modal from './Modal';
 import ClientForm from './ClientForm';
 import { clientAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
-import { Download } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
+import '../styles/books.css';
 
 const Clients = () => {
   const userRole = localStorage.getItem('kt_user_role');
@@ -16,6 +17,7 @@ const Clients = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const columns = canManage
     ? ['CLIENT NAME', 'CONTACT', 'TOTAL HIRES', 'OUTSTANDING', 'STATUS', 'ACTION']
@@ -26,11 +28,16 @@ const Clients = () => {
   }, []);
 
   const fetchRecords = async () => {
+    setLoading(true);
     try {
       const response = await clientAPI.get();
-      const formatted = response.data.map(item => ({
+      const formatted = (response.data || []).map(item => ({
         ...item,
-        outstanding: `LKR ${item.outstanding}`,
+        name: item.name || '—',
+        contact: item.contact || '—',
+        outstanding_val: item.outstanding || 0,
+        outstanding: `LKR ${(item.outstanding || 0).toLocaleString()}`,
+        status: item.status || 'Active',
         action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
@@ -39,12 +46,22 @@ const Clients = () => {
         ) : null
       }));
       setClientRecords(formatted);
-      setLoading(false);
+      setError(null);
     } catch (err) {
       console.error('Error fetching clients:', err);
+      setError('Could not load client records.');
+    } finally {
       setLoading(false);
     }
   };
+
+  const filteredRecords = React.useMemo(() => {
+    return clientRecords.filter(r => {
+      return !searchQuery || 
+        (r.name    || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.contact || '').toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [clientRecords, searchQuery]);
 
   const handleAddClient = async (data) => {
     try {
@@ -77,7 +94,7 @@ const Clients = () => {
 
   const handleExportPDF = () => {
     const exportColumns = ['CLIENT NAME', 'CONTACT', 'TOTAL HIRES', 'OUTSTANDING', 'STATUS'];
-    const exportData = clientRecords.map(r => [
+    const exportData = filteredRecords.map(r => [
       r.name || '—',
       r.contact || '—',
       r.totalHires?.toString() || '0',
@@ -94,10 +111,11 @@ const Clients = () => {
   };
 
   const stats = React.useMemo(() => {
-    const totalClients = clientRecords.length;
-    const activeClients = clientRecords.filter(c => c.status === 'Active').length;
+    const totalClients = filteredRecords.length;
+    const activeClients = filteredRecords.filter(c => c.status === 'Active').length;
     return { totalClients, activeClients };
-  }, [clientRecords]);
+  }, [filteredRecords]);
+
   return (
     <div className="book-container">
       <div className="book-summary">
@@ -105,22 +123,30 @@ const Clients = () => {
           <label>TOTAL CLIENTS</label>
           <h3>{stats.totalClients}</h3>
         </div>
-        <div className="summary-item">
+        <div className="summary-item" style={{ borderRight: 'none' }}>
           <label>ACTIVE CLIENTS</label>
-          <h3>{stats.activeClients}</h3>
+          <h3 style={{ color: '#10B981' }}>{stats.activeClients}</h3>
         </div>
       </div>
 
       <div className="book-filters">
         <div className="search-box">
-          <input type="text" placeholder="Search customer..." />
+          <Search className="search-icon" size={16} />
+          <input 
+            type="text" 
+            placeholder="Search by name or contact..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
         <div className="filter-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '1rem' }}>
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export PDF
           </button>
           {canManage && (
-            <button className="add-btn" onClick={() => setIsModalOpen(true)}>+ Add New Client</button>
+            <button className="add-btn" onClick={() => { setEditingItem(null); setIsModalOpen(true); }}>
+              + Add New Client
+            </button>
           )}
         </div>
       </div>
@@ -129,7 +155,7 @@ const Clients = () => {
 
       <DataTable 
         columns={columns} 
-        data={clientRecords} 
+        data={filteredRecords} 
         loading={loading}
         emptyMessage={loading ? "Loading..." : "No client records found."} 
       />

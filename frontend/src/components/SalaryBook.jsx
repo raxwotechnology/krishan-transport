@@ -4,8 +4,9 @@ import Modal from './Modal';
 import SalaryForm from './SalaryForm';
 import { salaryAPI, vehicleAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
-import { Download } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
+import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
 
 const SalaryBook = () => {
@@ -20,6 +21,7 @@ const SalaryBook = () => {
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
   const [success, setSuccess] = React.useState(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const columns = canManage
     ? ['MONTH', 'EMPLOYEE', 'VEHICLE', 'BASIC', 'INCENTIVE', 'ADVANCE', 'NET PAY', 'ACTION']
@@ -45,8 +47,10 @@ const SalaryBook = () => {
       const formatted = rawData.map(item => ({
         ...item,
         net_val: item.netPay,
-        basic: `LKR ${item.basic}`,
-        netPay: `LKR ${Number(item.netPay).toFixed(2)}`,
+        basic: `LKR ${(item.basic || 0).toLocaleString()}`,
+        incentive: `LKR ${(item.incentive || 0).toLocaleString()}`,
+        advance: `LKR ${(item.advance || 0).toLocaleString()}`,
+        netPay: `LKR ${Number(item.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
@@ -57,16 +61,21 @@ const SalaryBook = () => {
       setSalaryRecords(formatted);
       setError(null);
     } catch (err) {
-      setError('Connection issue: using local salary records.');
+      setError('Connection issue: could not load salary records.');
     } finally {
       setLoading(false);
     }
   };
 
   const filteredRecords = React.useMemo(() => {
-    if (!selectedVehicle) return salaryRecords;
-    return salaryRecords.filter(r => r.vehicle === selectedVehicle);
-  }, [salaryRecords, selectedVehicle]);
+    return salaryRecords.filter(r => {
+      const matchVehicle = !selectedVehicle || r.vehicle === selectedVehicle;
+      const matchSearch = !searchQuery || 
+        (r.employee || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.month    || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchVehicle && matchSearch;
+    });
+  }, [salaryRecords, selectedVehicle, searchQuery]);
 
   const stats = React.useMemo(() => {
     const totalPaid = filteredRecords.reduce((sum, r) => sum + (parseFloat(r.net_val) || 0), 0);
@@ -119,8 +128,8 @@ const SalaryBook = () => {
       r.employee || '—',
       r.vehicle || '—',
       r.basic || '—',
-      r.incentive !== undefined ? `LKR ${r.incentive}` : '—',
-      r.advance !== undefined ? `LKR ${r.advance}` : '—',
+      r.incentive || '—',
+      r.advance || '—',
       r.netPay || '—'
     ]);
     
@@ -153,7 +162,13 @@ const SalaryBook = () => {
 
       <div className="book-filters">
         <div className="search-box">
-          <input type="text" placeholder="Search employee name..." />
+          <Search className="search-icon" size={16} />
+          <input 
+            type="text" 
+            placeholder="Search employee or month..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
         <div className="filter-actions">
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

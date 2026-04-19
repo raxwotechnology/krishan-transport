@@ -4,9 +4,9 @@ import Modal from './Modal';
 import DieselForm from './DieselForm';
 import { dieselAPI, vehicleAPI } from '../services/api';
 import { generatePDFReport } from '../utils/reportGenerator';
-import { Download } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
-import './DieselBook.css';
+import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
 
 const DieselBook = () => {
@@ -21,6 +21,7 @@ const DieselBook = () => {
   const [error, setError] = React.useState(null);
   const [editingItem, setEditingItem] = React.useState(null);
   const [success, setSuccess] = React.useState(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const columns = canManage
     ? ['DATE', 'EMPLOYEE', 'VEHICLE', 'LITERS', 'PRICE/L', 'TOTAL', 'ODOMETER', 'NOTE', 'ACTION']
@@ -48,8 +49,9 @@ const DieselBook = () => {
         ...item,
         date: new Date(item.date).toLocaleDateString(),
         employee: item.employee || '—',
+        pricePerLiter_disp: `LKR ${(item.pricePerLiter || 0).toLocaleString()}`,
         total_val: item.total,
-        total: `LKR ${Number(item.total).toFixed(2)}`,
+        total: `LKR ${Number(item.total).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
         action: canManage ? (
           <div className="table-actions">
             <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>
@@ -60,16 +62,22 @@ const DieselBook = () => {
       setDieselRecords(formatted);
       setError(null);
     } catch (err) {
-      setError('Connection issue: using local diesel records.');
+      setError('Connection issue: could not load diesel records.');
     } finally {
       setLoading(false);
     }
   };
 
   const filteredRecords = React.useMemo(() => {
-    if (!selectedVehicle) return dieselRecords;
-    return dieselRecords.filter(r => r.vehicle === selectedVehicle);
-  }, [dieselRecords, selectedVehicle]);
+    return dieselRecords.filter(r => {
+      const matchVehicle = !selectedVehicle || r.vehicle === selectedVehicle;
+      const matchSearch = !searchQuery || 
+        (r.employee || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.vehicle  || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.date     || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchVehicle && matchSearch;
+    });
+  }, [dieselRecords, selectedVehicle, searchQuery]);
 
   // Summary Calculations
   const stats = React.useMemo(() => {
@@ -124,7 +132,7 @@ const DieselBook = () => {
       r.employee || '—',
       r.vehicle || '—',
       r.liters || '—',
-      r.pricePerLiter ? `LKR ${r.pricePerLiter}` : '—',
+      r.pricePerLiter_disp || '—',
       r.total || '—',
       r.odometer || '—',
       r.note || '—'
@@ -163,7 +171,13 @@ const DieselBook = () => {
 
       <div className="book-filters">
         <div className="search-box">
-          <input type="text" placeholder="Filter by vehicle or date..." />
+          <Search className="search-icon" size={16} />
+          <input 
+            type="text" 
+            placeholder="Search date, employee, vehicle..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
         <div className="filter-actions">
           <button className="secondary-btn" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
