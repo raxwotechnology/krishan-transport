@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../services/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, User, Lock, Loader2 } from 'lucide-react';
 import logo from '../logo.png';
 import './Login.css';
 import transportBg from '../assets/transport_bg.png';
@@ -24,7 +24,7 @@ const Login = ({ onLoginSuccess, roleContext, onBack }) => {
         onLoginSuccess();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Connection error. Check if backend is running.');
+      setError(err.response?.data?.message || 'Invalid credentials or connection error.');
     } finally {
       setLoading(false);
     }
@@ -36,44 +36,56 @@ const Login = ({ onLoginSuccess, roleContext, onBack }) => {
         <div className="landing-overlay"></div>
         <div className="login-content-wrapper">
           <div className="login-card">
-          <button className="back-link" onClick={onBack}>
-            <ArrowLeft size={16} /> Back to Selection
-          </button>
-          <div className="login-logo-wrapper">
-            <img src={logo} alt="Krishan Transport Logo" className="login-logo" />
-          </div>
-          <div className="login-header">
-            <h2>{roleContext} Portal</h2>
-            <p>Login with your {roleContext?.toLowerCase()} credentials</p>
-          </div>
-          <form className="login-form" onSubmit={handleLogin}>
-            {error && <div className="login-error">{error}</div>}
-            <div className="form-group">
-              <label>Username</label>
-              <input 
-                type="text" 
-                value={username} 
-                onChange={e => setUsername(e.target.value)} 
-                placeholder="Enter your username"
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label>Password</label>
-              <input 
-                type="password" 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                placeholder="Enter your password"
-                required 
-              />
-            </div>
-            <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? 'Authenticating...' : `Sign In as ${roleContext}`}
+            <button className="back-link" onClick={onBack}>
+              <ArrowLeft size={16} /> Back
             </button>
-          </form>
+            <div className="login-logo-wrapper">
+              <img src={logo} alt="Krishan Transport Logo" className="login-logo" />
+            </div>
+            <div className="login-header">
+              <h2>{roleContext} Portal</h2>
+              <p>Welcome back! Please enter your details.</p>
+            </div>
+            <form className="login-form" onSubmit={handleLogin}>
+              {error && <div className="login-error">{error}</div>}
+              <div className="form-group">
+                <label htmlFor="username">Username</label>
+                <div className="input-wrapper">
+                  <User className="input-icon" size={20} />
+                  <input 
+                    id="username"
+                    type="text" 
+                    value={username} 
+                    onChange={e => setUsername(e.target.value)} 
+                    placeholder="yourname@domain.com"
+                    required 
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <div className="input-wrapper">
+                  <Lock className="input-icon" size={20} />
+                  <input 
+                    id="password"
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    placeholder="••••••••"
+                    required 
+                  />
+                </div>
+              </div>
+              <button type="submit" className="login-btn" disabled={loading}>
+                {loading ? (
+                  <span className="btn-loading-content">
+                    <Loader2 className="spinner" size={20} /> Authenticating...
+                  </span>
+                ) : `Sign In as ${roleContext}`}
+              </button>
+            </form>
+          </div>
         </div>
-       </div>
       </div>
     </div>
   );
