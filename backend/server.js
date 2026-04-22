@@ -9,12 +9,19 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'https://krishantransports.netlify.app',
   'https://krishan-transport-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
-  origin: true, // During debugging, allow all origins to bypass the "Not allowed" networking error
+  origin: (origin, callback) => {
+    // Allow non-browser requests and explicit frontend origins.
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -60,8 +67,9 @@ app.get('/', (req, res) => {
   res.send('Krishan Transport API is running...');
 });
 
-// Start Server (Only for local development, Vercel serverless functions handle this differently)
-if (process.env.NODE_ENV !== 'production') {
+// Start server for Node hosts (Render/local), but avoid starting inside Vercel serverless runtime.
+const isVercelRuntime = process.env.VERCEL === '1';
+if (!isVercelRuntime) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
