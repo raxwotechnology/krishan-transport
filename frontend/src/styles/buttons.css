@@ -114,4 +114,10 @@
   border-color: var(--primary-glow);
 }
 
-.table-actions { display: flex; gap: 6px; align-items: center; }
+.table-actions { 
+  display: flex; 
+  gap: 8px; 
+  align-items: center; 
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}

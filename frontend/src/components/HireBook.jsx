@@ -78,8 +78,21 @@ const HireBook = () => {
         ),
         action: (
           <div className="table-actions" onClick={e => e.stopPropagation()}>
-            {canManage && <button className="edit-btn" onClick={() => handleEdit(item)}>Edit</button>}
-            {canManage && <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>}
+            {canManage && (
+              <button className="edit-btn" onClick={() => handleEdit(item)} title="Edit" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Edit
+              </button>
+            )}
+            {canManage && (
+              <button className="duplicate-btn" onClick={() => handleDuplicate(item)} title="Add More" style={{ padding: '4px 8px' }}>
+                <PlusCircle size={14} /> Add More
+              </button>
+            )}
+            {canManage && (
+              <button className="delete-btn" onClick={() => handleDelete(item._id)} title="Delete">
+                Delete
+              </button>
+            )}
           </div>
         )
       }));
@@ -115,12 +128,12 @@ const HireBook = () => {
 
   const handleAddJob = async (data) => {
     try {
-      if (editingItem) {
+      if (editingItem && editingItem._id) {
         await hireAPI.update(editingItem._id, data);
         setSuccess('Hire record updated!');
       } else {
         await hireAPI.create(data);
-        setSuccess('New hire job added!');
+        setSuccess('New hire job(s) added!');
       }
       fetchRecords();
       setIsModalOpen(false);
@@ -135,6 +148,14 @@ const HireBook = () => {
   const handleEdit = (item) => {
     const target = item.rawData || item;
     setEditingItem(target);
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicate = (item) => {
+    const target = item.rawData || item;
+    // Remove database internal fields to treat it as a new entry
+    const { _id, createdAt, updatedAt, __v, ...rest } = target;
+    setEditingItem(rest);
     setIsModalOpen(true);
   };
 
@@ -264,7 +285,7 @@ const HireBook = () => {
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); setEditingItem(null); }} 
-        title={editingItem ? 'Edit Hire Job' : 'Add Hire Job'}
+        title={editingItem && editingItem._id ? 'Edit Hire Job' : 'Add Hire Job'}
         wide
       >
         <HireForm 

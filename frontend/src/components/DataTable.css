@@ -73,6 +73,11 @@
   max-width: 200px;
 }
 
+.data-table td:last-child {
+  max-width: none;
+  overflow: visible;
+}
+
 .data-table tbody tr:last-child td { border-bottom: none; }
 
 .data-table tbody tr { transition: background 0.12s ease; }

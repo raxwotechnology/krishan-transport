@@ -140,7 +140,51 @@
   .hire-form-footer { flex-direction: column; gap: 16px; align-items: stretch; }
   .total-display { align-items: center; text-align: center; }
   .modal-actions { flex-direction: column; }
-  .modal-actions button { width: 100%; }
+.modal-actions button { width: 100%; }
+}
+
+.duplicate-btn {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.duplicate-btn:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+
+.add-btn-batch {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-btn-batch:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--primary-glow);
 }
 
 @media (max-width: 480px) {

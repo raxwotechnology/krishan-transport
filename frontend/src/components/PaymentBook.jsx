@@ -36,9 +36,7 @@ const PaymentBook = () => {
 
   /* Table columns */
   const tableColumns = [
-    'DATE', 'CLIENT', 'VEHICLE', 'LOCATION',
-    'START', 'END', 'TOTAL HRS', 'MIN HRS', 'HRS IN BILL',
-    'HIRE AMT', 'COMMISSION', 'DAY PAY', 'TAKEN', 'BALANCE', 'STATUS', 'ACTION'
+    'DATE', 'CLIENT', 'VEHICLE', 'HIRE AMT', 'BALANCE', 'STATUS', 'ACTION'
   ];
 
   React.useEffect(() => { fetchRecords(); fetchVehicles(); }, []);

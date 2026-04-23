@@ -1,23 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { vehicleAPI, clientAPI, employeeAPI, hireAPI } from '../services/api';
+import { Plus, Trash2, Copy } from 'lucide-react';
 import '../styles/books.css';
 import '../styles/forms.css';
 
-const defaultForm = () => ({
-  date:            new Date().toISOString().split('T')[0],
-  client:          '',
-  vehicle:         '',
-  location:        '',
-  driverName:      '',
-  helperName:      '',
+const defaultJob = (prevJob = {}) => ({
+  vehicle:         prevJob.vehicle || '',
+  driverName:      prevJob.driverName || '',
+  helperName:      prevJob.helperName || '',
+  location:        prevJob.location || '',
   startTime:       '',
   endTime:         '',
   restTime:        0,
   workingHours:    0,
-  minimumHours:    0,
-  oneHourFee:      0,
+  minimumHours:    prevJob.minimumHours || 0,
+  oneHourFee:      prevJob.oneHourFee || 0,
   extraHours:      0,
-  extraHourFee:    0,
+  extraHourFee:    prevJob.extraHourFee || 0,
   transportFee:    0,
   dieselCost:      0,
   billAmount:      0,
@@ -34,21 +33,26 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
   const [clients, setClients]     = useState([]);
   const [employees, setEmployees] = useState([]);
   const [previousJobs, setPreviousJobs] = useState([]);
-  const [formData, setFormData]   = useState(
-    initialData
-      ? { ...defaultForm(), ...initialData, date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }
-      : defaultForm()
-  );
+
+  // Common fields (just Date and Client now)
+  const [commonData, setCommonData] = useState({
+    date:            new Date().toISOString().split('T')[0],
+    client:          '',
+  });
+
+  // Array of jobs
+  const [jobs, setJobs] = useState([defaultJob()]);
 
   useEffect(() => {
     if (initialData) {
-      setFormData({
-        ...defaultForm(),
-        ...initialData,
-        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+      setCommonData({
+        date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        client: initialData.client || '',
       });
-    } else {
-      setFormData(defaultForm());
+      setJobs([{
+        ...defaultJob(),
+        ...initialData,
+      }]);
     }
   }, [initialData]);
 
@@ -67,227 +71,295 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
     fetchData();
   }, []);
 
-  const handleChange = (e) => {
+  const handleCommonChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => {
+    setCommonData(prev => {
       const updated = { ...prev, [name]: value };
-
-      if (['startTime', 'endTime', 'restTime'].includes(name)) {
-        const start = name === 'startTime' ? value : updated.startTime;
-        const end   = name === 'endTime'   ? value : updated.endTime;
-        const rest  = parseFloat(name === 'restTime' ? value : updated.restTime) || 0;
-        if (start && end) {
-          const [sh, sm] = start.split(':').map(Number);
-          const [eh, em] = end.split(':').map(Number);
-          let totalMins = (eh * 60 + em) - (sh * 60 + sm);
-          if (totalMins < 0) totalMins += 1440; 
-          totalMins -= rest;
-          updated.workingHours = Math.max(0, +(totalMins / 60).toFixed(2));
-        }
-      }
-
-      if (['workingHours', 'minimumHours'].includes(name)) {
-        const wh = parseFloat(name === 'workingHours' ? value : updated.workingHours) || 0;
-        const mh = parseFloat(name === 'minimumHours'  ? value : updated.minimumHours) || 0;
-        updated.extraHours = Math.max(0, +(wh - mh).toFixed(2));
-      }
-
-      const mh  = parseFloat(updated.minimumHours)  || 0;
-      const ohf = parseFloat(updated.oneHourFee)    || 0;
-      const eh  = parseFloat(updated.extraHours)    || 0;
-      const ehf = parseFloat(updated.extraHourFee)  || 0;
-      const tf  = parseFloat(updated.transportFee)  || 0;
-      updated.billAmount = +(mh * ohf + eh * ehf + tf).toFixed(2);
-
-      const dc  = parseFloat(updated.dieselCost)  || 0;
-      const com = parseFloat(updated.commission)  || 0;
-      updated.totalAmount = +(updated.billAmount + dc - com).toFixed(2);
-
-      if (name === 'vehicle' && value && !initialData) {
-        const lastJob = previousJobs
-          .filter(j => j.vehicle === value)
-          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-        if (lastJob) {
-          updated.driverName = lastJob.driverName || '';
-        }
-      }
 
       if (name === 'client' && value && !initialData) {
         const lastJob = previousJobs
           .filter(j => j.client === value)
           .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
         if (lastJob) {
-          updated.location = lastJob.location || '';
-          updated.minimumHours = lastJob.minimumHours || 0;
-          updated.oneHourFee = lastJob.oneHourFee || 0;
-          updated.extraHourFee = lastJob.extraHourFee || 0;
+          setJobs(currentJobs => currentJobs.map((job, idx) => {
+            if (idx === 0 || !job.location) {
+              return {
+                ...job,
+                location: lastJob.location || '',
+                minimumHours: lastJob.minimumHours || 0,
+                oneHourFee: lastJob.oneHourFee || 0,
+                extraHourFee: lastJob.extraHourFee || 0,
+                vehicle: lastJob.vehicle || job.vehicle,
+                driverName: lastJob.driverName || job.driverName,
+              };
+            }
+            return job;
+          }));
         }
       }
-
       return updated;
     });
   };
 
+  const handleJobChange = (index, e) => {
+    const { name, value } = e.target;
+    setJobs(prev => {
+      const updatedJobs = [...prev];
+      const job = { ...updatedJobs[index], [name]: value };
+
+      // Auto-fill Driver when vehicle changes
+      if (name === 'vehicle' && value) {
+         const lastJob = previousJobs
+          .filter(j => j.vehicle === value)
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+        if (lastJob) {
+          job.driverName = lastJob.driverName || '';
+        }
+      }
+
+      // Calculations
+      if (['startTime', 'endTime', 'restTime'].includes(name)) {
+        const start = name === 'startTime' ? value : job.startTime;
+        const end   = name === 'endTime'   ? value : job.endTime;
+        const rest  = parseFloat(name === 'restTime' ? value : job.restTime) || 0;
+        if (start && end) {
+          const [sh, sm] = start.split(':').map(Number);
+          const [eh, em] = end.split(':').map(Number);
+          let totalMins = (eh * 60 + em) - (sh * 60 + sm);
+          if (totalMins < 0) totalMins += 1440; 
+          totalMins -= rest;
+          job.workingHours = Math.max(0, +(totalMins / 60).toFixed(2));
+        }
+      }
+
+      if (['workingHours', 'minimumHours'].includes(name)) {
+        const wh = parseFloat(name === 'workingHours' ? value : job.workingHours) || 0;
+        const mh = parseFloat(name === 'minimumHours'  ? value : job.minimumHours) || 0;
+        job.extraHours = Math.max(0, +(wh - mh).toFixed(2));
+      }
+
+      const mh  = parseFloat(job.minimumHours)  || 0;
+      const ohf = parseFloat(job.oneHourFee)    || 0;
+      const eh  = parseFloat(job.extraHours)    || 0;
+      const ehf = parseFloat(job.extraHourFee)  || 0;
+      const tf  = parseFloat(job.transportFee)  || 0;
+      job.billAmount = +(mh * ohf + eh * ehf + tf).toFixed(2);
+
+      const dc  = parseFloat(job.dieselCost)  || 0;
+      const com = parseFloat(job.commission)  || 0;
+      job.totalAmount = +(job.billAmount + dc - com).toFixed(2);
+
+      updatedJobs[index] = job;
+      return updatedJobs;
+    });
+  };
+
+  const addJob = () => {
+    const lastJob = jobs[jobs.length - 1];
+    setJobs([...jobs, defaultJob(lastJob)]);
+  };
+
+  const removeJob = (index) => {
+    if (jobs.length > 1) {
+      setJobs(jobs.filter((_, i) => i !== index));
+    }
+  };
+  const duplicateJob = (index) => {
+    const newJob = { ...jobs[index] };
+    setJobs([...jobs, newJob]);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    const finalData = jobs.map(job => ({
+      ...commonData,
+      ...job
+    }));
+    
+    if (initialData && initialData._id) {
+      onSubmit(finalData[0]);
+    } else {
+      onSubmit(finalData);
+    }
   };
 
   const driversList = employees.filter(emp => emp.role === 'Driver' && emp.status === 'Active');
   const helpersList = employees.filter(emp => emp.role === 'Helper' && emp.status === 'Active');
 
+  const totalBillAmount = jobs.reduce((sum, j) => sum + (parseFloat(j.totalAmount) || 0), 0);
+
   return (
     <form onSubmit={handleSubmit} className="hire-form">
       <div className="hire-form-scroll">
         
-        {/* Basic Information */}
-        <div className="form-section">
-          <p className="form-section-title">Basic Information</p>
-          <div className="form-grid">
+        {/* Common Section */}
+        <div className="form-section common-fields" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+          <p className="form-section-title" style={{ color: '#1e293b', fontWeight: '700' }}>Batch Information</p>
+          <div className="form-grid-2">
             <div className="form-group">
-              <label>Date *</label>
-              <input type="date" name="date" value={formData.date} onChange={handleChange} required />
+              <label>Booking Date *</label>
+              <input type="date" name="date" value={commonData.date} onChange={handleCommonChange} required />
             </div>
             <div className="form-group">
-              <label>Bill Number</label>
-              <input type="text" name="billNumber" value={formData.billNumber} onChange={handleChange} placeholder="e.g. BL-2607" />
-            </div>
-            <div className="form-group">
-              <label>Time Sheet No</label>
-              <input type="text" name="timeSheetNumber" value={formData.timeSheetNumber} onChange={handleChange} placeholder="e.g. TS-001" />
-            </div>
-          </div>
-          <div className="form-grid" style={{ marginTop: '16px' }}>
-            <div className="form-group">
-              <label>Company Name *</label>
-              <select name="client" value={formData.client} onChange={handleChange} required>
+              <label>Customer / Company *</label>
+              <select name="client" value={commonData.client} onChange={handleCommonChange} required>
                 <option value="">Select Client</option>
                 {clients.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
-            <div className="form-group">
-              <label>Vehicle Number *</label>
-              <select name="vehicle" value={formData.vehicle} onChange={handleChange} required>
-                <option value="">Select Vehicle</option>
-                {vehicles.map(v => <option key={v._id} value={v.number}>{v.number}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Location / Site</label>
-              <input type="text" name="location" value={formData.location} onChange={handleChange} placeholder="e.g. Colombo" />
-            </div>
           </div>
         </div>
 
-        {/* Personnel */}
-        <div className="form-section">
-          <p className="form-section-title">Personnel</p>
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label>Driver Name</label>
-              <select name="driverName" value={formData.driverName} onChange={handleChange}>
-                <option value="">Select Driver</option>
-                {driversList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
-              </select>
+        {/* Jobs Section */}
+        <div className="jobs-container">
+          {jobs.map((job, index) => (
+            <div key={index} className="form-section job-entry" style={{ border: '1px solid #e2e8f0', padding: '16px', borderRadius: '12px', marginBottom: '16px', position: 'relative', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '10px' }}>
+                <p className="form-section-title" style={{ margin: 0, fontSize: '0.9rem', color: '#64748b' }}>BOOKING ENTRY #{index + 1}</p>
+                {!initialData && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="button" className="secondary-btn" onClick={() => duplicateJob(index)} title="Duplicate" style={{ padding: '6px 10px', height: '32px' }}>
+                      <Copy size={14} /> <span style={{fontSize: '11px', fontWeight: '600'}}>Copy</span>
+                    </button>
+                    {jobs.length > 1 && (
+                      <button type="button" className="delete-btn" onClick={() => removeJob(index)} title="Remove" style={{ padding: '6px 10px', height: '32px' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Vehicle & Personnel in each Job Entry */}
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Vehicle Number *</label>
+                  <select name="vehicle" value={job.vehicle} onChange={(e) => handleJobChange(index, e)} required>
+                    <option value="">Select Vehicle</option>
+                    {vehicles.map(v => <option key={v._id} value={v.number}>{v.number}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Driver</label>
+                  <select name="driverName" value={job.driverName} onChange={(e) => handleJobChange(index, e)}>
+                    <option value="">Select Driver</option>
+                    {driversList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Helper</label>
+                  <select name="helperName" value={job.helperName} onChange={(e) => handleJobChange(index, e)}>
+                    <option value="">Select Helper</option>
+                    {helpersList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Location / Site</label>
+                  <input type="text" name="location" value={job.location} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. Colombo" />
+                </div>
+                <div className="form-group">
+                  <label>Bill Number</label>
+                  <input type="text" name="billNumber" value={job.billNumber} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. BL-2607" />
+                </div>
+                <div className="form-group">
+                  <label>Time Sheet No</label>
+                  <input type="text" name="timeSheetNumber" value={job.timeSheetNumber} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. TS-001" />
+                </div>
+              </div>
+
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Start Time</label>
+                  <input type="time" name="startTime" value={job.startTime} onChange={(e) => handleJobChange(index, e)} />
+                </div>
+                <div className="form-group">
+                  <label>End Time</label>
+                  <input type="time" name="endTime" value={job.endTime} onChange={(e) => handleJobChange(index, e)} />
+                </div>
+                <div className="form-group">
+                  <label>Rest (min)</label>
+                  <input type="number" name="restTime" value={job.restTime} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Work Hours</label>
+                  <input type="number" name="workingHours" value={job.workingHours} readOnly className="input-highlight-blue" />
+                </div>
+              </div>
+
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Min Hours</label>
+                  <input type="number" name="minimumHours" value={job.minimumHours} onChange={(e) => handleJobChange(index, e)} step="0.01" min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Rate / Hour</label>
+                  <input type="number" name="oneHourFee" value={job.oneHourFee} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Extra Hours</label>
+                  <input type="number" name="extraHours" value={job.extraHours} readOnly className="input-highlight-gold" />
+                </div>
+                <div className="form-group">
+                  <label>Extra Rate</label>
+                  <input type="number" name="extraHourFee" value={job.extraHourFee} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+              </div>
+
+              <div className="form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Fuel Cost</label>
+                  <input type="number" name="dieselCost" value={job.dieselCost} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Transport Fee</label>
+                  <input type="number" name="transportFee" value={job.transportFee} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Commission</label>
+                  <input type="number" name="commission" value={job.commission} onChange={(e) => handleJobChange(index, e)} min="0" />
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select name="status" value={job.status} onChange={(e) => handleJobChange(index, e)}>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Details / Remarks</label>
+                <textarea name="details" value={job.details} onChange={(e) => handleJobChange(index, e)} rows="2" placeholder="Notes for this job..." />
+              </div>
+              
+              <div style={{ marginTop: '12px', textAlign: 'right', fontWeight: '600', color: '#2563eb' }}>
+                Subtotal: LKR {Number(job.totalAmount).toLocaleString()}
+              </div>
             </div>
-            <div className="form-group">
-              <label>Helper Name</label>
-              <select name="helperName" value={formData.helperName} onChange={handleChange}>
-                <option value="">Select Helper</option>
-                {helpersList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
-              </select>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Time Tracking */}
-        <div className="form-section">
-          <p className="form-section-title">Time Tracking</p>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Start Time</label>
-              <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} />
-            </div>
-            <div className="form-group">
-              <label>End Time</label>
-              <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} />
-            </div>
-            <div className="form-group">
-              <label>Rest (min)</label>
-              <input type="number" name="restTime" value={formData.restTime} onChange={handleChange} min="0" />
-            </div>
-            <div className="form-group">
-              <label>Work Hours (Auto)</label>
-              <input type="number" name="workingHours" value={formData.workingHours} readOnly className="input-highlight-blue" />
-            </div>
-          </div>
-        </div>
-
-        {/* Billing */}
-        <div className="form-section">
-          <p className="form-section-title">Financials (Calculated)</p>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Min Hours</label>
-              <input type="number" name="minimumHours" value={formData.minimumHours} onChange={handleChange} step="0.01" min="0" />
-            </div>
-            <div className="form-group">
-              <label>Rate / Hour (LKR)</label>
-              <input type="number" name="oneHourFee" value={formData.oneHourFee} onChange={handleChange} min="0" />
-            </div>
-            <div className="form-group">
-              <label>Extra Hours (Auto)</label>
-              <input type="number" name="extraHours" value={formData.extraHours} readOnly className="input-highlight-gold" />
-            </div>
-            <div className="form-group">
-              <label>Extra Rate (LKR)</label>
-              <input type="number" name="extraHourFee" value={formData.extraHourFee} onChange={handleChange} min="0" />
-            </div>
-          </div>
-          <div className="form-grid" style={{ marginTop: '16px' }}>
-            <div className="form-group">
-              <label>Fuel Cost (LKR)</label>
-              <input type="number" name="dieselCost" value={formData.dieselCost} onChange={handleChange} min="0" />
-            </div>
-            <div className="form-group">
-              <label>Transport Fee (LKR)</label>
-              <input type="number" name="transportFee" value={formData.transportFee} onChange={handleChange} min="0" />
-            </div>
-            <div className="form-group">
-              <label>Commission (LKR)</label>
-              <input type="number" name="commission" value={formData.commission} onChange={handleChange} min="0" />
-            </div>
-          </div>
-        </div>
-
-        {/* Notes & Status */}
-        <div className="form-section">
-          <p className="form-section-title">Additional Details</p>
-          <div className="form-group">
-            <label>Details / Remarks</label>
-            <textarea name="details" value={formData.details} onChange={handleChange} rows="3" placeholder="Add any notes..." />
-          </div>
-          <div className="form-group" style={{ marginTop: '16px' }}>
-            <label>Status</label>
-            <select name="status" value={formData.status} onChange={handleChange}>
-              <option value="Pending">Pending</option>
-              <option value="Completed">Completed</option>
-              <option value="Paid">Paid</option>
-            </select>
-          </div>
-        </div>
+        {(!initialData || !initialData._id) && (
+          <button type="button" className="add-btn-batch" onClick={addJob}>
+            <Plus size={20} /> Add Another Booking Entry
+          </button>
+        )}
 
       </div>
 
       {/* Sticky Footer */}
       <div className="hire-form-footer">
         <div className="total-display">
-          <span>Final Total Amount</span>
-          <strong>LKR {Number(formData.totalAmount).toLocaleString()}</strong>
+          <span>{jobs.length} Entry(s) — NET TOTAL</span>
+          <strong>LKR {totalBillAmount.toLocaleString()}</strong>
         </div>
         <div className="modal-actions">
           <button type="button" className="cancel-btn" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="submit-btn">{initialData ? 'Update Job' : 'Save Hire Job'}</button>
+          <button type="submit" className="submit-btn">{initialData && initialData._id ? 'Update Record' : 'Confirm & Save All'}</button>
         </div>
       </div>
     </form>

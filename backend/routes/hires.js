@@ -21,8 +21,12 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 router.post('/', authMiddleware, async (req, res) => {
-  const record = new Hire(req.body);
   try {
+    if (Array.isArray(req.body)) {
+      const newRecords = await Hire.insertMany(req.body);
+      return res.status(201).json(newRecords);
+    }
+    const record = new Hire(req.body);
     const newRecord = await record.save();
     res.status(201).json(newRecord);
   } catch (err) {
