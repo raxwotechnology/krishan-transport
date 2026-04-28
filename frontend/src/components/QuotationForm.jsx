@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { clientAPI, vehicleAPI } from '../services/api';
+import Autocomplete from './Autocomplete';
+import '../styles/forms.css';
 
 /* ── Helpers ───────────────────────────────────────────────── */
 const defaultForm = () => ({
@@ -54,8 +56,8 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
   const fetchLinkedData = async () => {
     try {
       const [cRes, vRes] = await Promise.all([
-        api.get('/clients'),
-        api.get('/vehicles'),
+        clientAPI.get(),
+        vehicleAPI.get(),
       ]);
       setClients(Array.isArray(cRes.data) ? cRes.data : []);
       setVehicles(Array.isArray(vRes.data) ? vRes.data : []);
@@ -68,32 +70,19 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const updated = { ...formData, [name]: value };
-    updated.estimatedTotal = calcTotal(updated);
-    setFormData(updated);
-  };
+    
+    // Auto-fill address if selecting existing client
+    if (name === 'clientName') {
+      const clientObj = clients.find(c => c.name === value);
+      if (clientObj) updated.clientAddress = clientObj.address || '';
+    }
 
-  /* Vehicle select → auto-fill vehicleType from DB */
-  const handleVehicleChange = (e) => {
-    const selectedNo  = e.target.value;
-    const vehicleObj  = vehicles.find((v) => v.number === selectedNo);
-    const updated = {
-      ...formData,
-      vehicleNo:   selectedNo,
-      vehicleType: vehicleObj?.type || formData.vehicleType,
-    };
-    updated.estimatedTotal = calcTotal(updated);
-    setFormData(updated);
-  };
+    // Auto-fill type if selecting existing vehicle
+    if (name === 'vehicleNo') {
+      const vehicleObj = vehicles.find(v => v.number === value);
+      if (vehicleObj) updated.vehicleType = vehicleObj.type || '';
+    }
 
-  /* Client select → auto-fill clientAddress if available */
-  const handleClientChange = (e) => {
-    const selectedName = e.target.value;
-    const clientObj    = clients.find((c) => c.name === selectedName);
-    const updated = {
-      ...formData,
-      clientName:    selectedName,
-      clientAddress: clientObj?.address || formData.clientAddress,
-    };
     updated.estimatedTotal = calcTotal(updated);
     setFormData(updated);
   };
@@ -101,6 +90,17 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    
+    // Auto-create missing records
+    try {
+      if (formData.clientName && !clients.find(c => c.name.toLowerCase() === formData.clientName.toLowerCase())) {
+        await clientAPI.create({ name: formData.clientName, status: 'Active' });
+      }
+      if (formData.vehicleNo && !vehicles.find(v => v.number.toLowerCase() === formData.vehicleNo.toLowerCase())) {
+        await vehicleAPI.create({ number: formData.vehicleNo, status: 'Active' });
+      }
+    } catch (err) { console.error('Auto-creation failed', err); }
+
     try {
       await onSubmit({ ...formData, estimatedTotal: calcTotal(formData) });
     } finally {
@@ -119,13 +119,16 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
           <p className="form-section-title">Quotation Details &amp; Client</p>
           <div className="form-grid">
 
-            {/* Client dropdown — auto-fills address */}
             <div className="form-group">
               <label>Client Name *</label>
-              <select name="clientName" value={formData.clientName} onChange={handleClientChange} required>
-                <option value="">Select Client</option>
-                {clients.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-              </select>
+              <Autocomplete 
+                name="clientName" 
+                value={formData.clientName} 
+                onChange={handleChange} 
+                options={clients.map(c => c.name)}
+                placeholder="Type client name"
+                required
+              />
             </div>
 
             <div className="form-group">
@@ -160,11 +163,6 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
               onChange={handleChange} rows="2"
               placeholder="Official address of the client..."
             />
-            {formData.clientName && formData.clientAddress && (
-              <span style={{ fontSize: '11px', color: '#2563EB', marginTop: '4px', display: 'block' }}>
-                ✓ Auto-filled from client record
-              </span>
-            )}
           </div>
         </div>
 
@@ -173,20 +171,17 @@ const QuotationForm = ({ onSubmit, onCancel, initialData }) => {
           <p className="form-section-title">Vehicle Specifications Required</p>
           <div className="form-grid">
 
-            {/* Vehicle Number → auto-fills type */}
             <div className="form-group">
               <label>Vehicle / Fleet No</label>
-              <select name="vehicleNo" value={formData.vehicleNo} onChange={handleVehicleChange}>
-                <option value="">Select Vehicle</option>
-                {vehicles.map(v => (
-                  <option key={v._id} value={v.number}>
-                    {v.number}{v.type ? ` — ${v.type}` : ''}
-                  </option>
-                ))}
-              </select>
+              <Autocomplete 
+                name="vehicleNo" 
+                value={formData.vehicleNo} 
+                onChange={handleChange} 
+                options={vehicles.map(v => v.number)}
+                placeholder="Vehicle No"
+              />
             </div>
 
-            {/* Vehicle Type — auto-filled, still editable */}
             <div className="form-group">
               <label>Vehicle Type</label>
               <select name="vehicleType" value={formData.vehicleType} onChange={handleChange}>

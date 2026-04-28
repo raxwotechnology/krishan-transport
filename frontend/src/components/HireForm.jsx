@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { vehicleAPI, clientAPI, employeeAPI, hireAPI } from '../services/api';
 import { Plus, Trash2, Copy } from 'lucide-react';
+import Autocomplete from './Autocomplete';
 import '../styles/books.css';
 import '../styles/forms.css';
 
 const defaultJob = (prevJob = {}) => ({
   vehicle:         prevJob.vehicle || '',
+  vehicleType:     prevJob.vehicleType || '',
+  isExternal:      prevJob.isExternal || false,
+  externalCost:    prevJob.externalCost || 0,
   driverName:      prevJob.driverName || '',
   helperName:      prevJob.helperName || '',
-  location:        prevJob.location || '',
+  address:         prevJob.address || '',
+  city:            prevJob.city || '',
   startTime:       '',
   endTime:         '',
   restTime:        0,
@@ -52,6 +57,8 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
       setJobs([{
         ...defaultJob(),
         ...initialData,
+        address: initialData.address || '',
+        city:    initialData.city    || initialData.location || '',
       }]);
     }
   }, [initialData]);
@@ -82,10 +89,11 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
           .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
         if (lastJob) {
           setJobs(currentJobs => currentJobs.map((job, idx) => {
-            if (idx === 0 || !job.location) {
+            if (idx === 0 || !job.city) {
               return {
                 ...job,
-                location: lastJob.location || '',
+                address: lastJob.address || '',
+                city: lastJob.city || '',
                 minimumHours: lastJob.minimumHours || 0,
                 oneHourFee: lastJob.oneHourFee || 0,
                 extraHourFee: lastJob.extraHourFee || 0,
@@ -109,12 +117,25 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
 
       // Auto-fill Driver when vehicle changes
       if (name === 'vehicle' && value) {
+         const fleetVeh = vehicles.find(v => v.number === value);
+         if (fleetVeh) {
+           job.vehicleType = fleetVeh.type || '';
+           job.isExternal = false;
+         } else {
+           job.isExternal = true;
+         }
+
          const lastJob = previousJobs
           .filter(j => j.vehicle === value)
           .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
         if (lastJob) {
           job.driverName = lastJob.driverName || '';
+          if (!fleetVeh) job.vehicleType = lastJob.vehicleType || '';
         }
+      }
+
+      if (name === 'isExternal') {
+        job.isExternal = e.target.checked;
       }
 
       // Calculations
@@ -147,6 +168,7 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
 
       const dc  = parseFloat(job.dieselCost)  || 0;
       const com = parseFloat(job.commission)  || 0;
+      job.externalCost = parseFloat(job.externalCost) || 0;
       job.totalAmount = +(job.billAmount + dc - com).toFixed(2);
 
       updatedJobs[index] = job;
@@ -169,8 +191,42 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
     setJobs([...jobs, newJob]);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Auto-create new records if they don't exist
+    try {
+      // Check Client
+      const existingClient = clients.find(c => c.name.toLowerCase() === commonData.client.toLowerCase());
+      if (!existingClient && commonData.client.trim() !== '') {
+        await clientAPI.create({ name: commonData.client, status: 'Active' });
+      }
+
+      // Process Jobs
+      for (const job of jobs) {
+        // Check Vehicle
+        const existingVehicle = vehicles.find(v => v.number.toLowerCase() === job.vehicle.toLowerCase());
+        if (!existingVehicle && job.vehicle.trim() !== '') {
+          await vehicleAPI.create({ number: job.vehicle, status: 'Active' });
+        }
+
+        // Check Driver
+        const existingDriver = employees.find(emp => emp.name.toLowerCase() === job.driverName.toLowerCase());
+        if (!existingDriver && job.driverName.trim() !== '') {
+          await employeeAPI.create({ name: job.driverName, role: 'Driver', status: 'Active' });
+        }
+
+        // Check Helper
+        const existingHelper = employees.find(emp => emp.name.toLowerCase() === job.helperName.toLowerCase());
+        if (!existingHelper && job.helperName.trim() !== '') {
+          await employeeAPI.create({ name: job.helperName, role: 'Helper', status: 'Active' });
+        }
+      }
+    } catch (err) {
+      console.error('Error auto-creating records:', err);
+      // We continue anyway, or we could show an error
+    }
+
     const finalData = jobs.map(job => ({
       ...commonData,
       ...job
@@ -184,7 +240,7 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
   };
 
   const driversList = employees.filter(emp => emp.role === 'Driver' && emp.status === 'Active');
-  const helpersList = employees.filter(emp => emp.role === 'Helper' && emp.status === 'Active');
+  const helpersList = employees.filter(emp => emp.status === 'Active'); // Everyone can be a helper
 
   const totalBillAmount = jobs.reduce((sum, j) => sum + (parseFloat(j.totalAmount) || 0), 0);
 
@@ -202,10 +258,14 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
             </div>
             <div className="form-group">
               <label>Customer / Company *</label>
-              <select name="client" value={commonData.client} onChange={handleCommonChange} required>
-                <option value="">Select Client</option>
-                {clients.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-              </select>
+              <Autocomplete 
+                name="client" 
+                value={commonData.client} 
+                onChange={handleCommonChange} 
+                options={clients.map(c => c.name)}
+                placeholder="Type or select client"
+                required
+              />
             </div>
           </div>
         </div>
@@ -232,37 +292,114 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
 
               {/* Vehicle & Personnel in each Job Entry */}
               <div className="form-grid">
-                <div className="form-group">
+                <div className="form-group" style={{ flex: '1.2' }}>
                   <label>Vehicle Number *</label>
-                  <select name="vehicle" value={job.vehicle} onChange={(e) => handleJobChange(index, e)} required>
-                    <option value="">Select Vehicle</option>
-                    {vehicles.map(v => <option key={v._id} value={v.number}>{v.number}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <Autocomplete 
+                        name="vehicle" 
+                        value={job.vehicle} 
+                        onChange={(e) => handleJobChange(index, e)} 
+                        options={vehicles.map(v => v.number)}
+                        placeholder="Vehicle No"
+                        required
+                      />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', whiteSpace: 'nowrap', cursor: 'pointer', marginBottom: 0, marginTop: '24px' }}>
+                      <input 
+                        type="checkbox" 
+                        name="isExternal" 
+                        checked={job.isExternal} 
+                        onChange={(e) => handleJobChange(index, e)} 
+                      />
+                      External
+                    </label>
+                  </div>
                 </div>
+
                 <div className="form-group">
-                  <label>Driver</label>
-                  <select name="driverName" value={job.driverName} onChange={(e) => handleJobChange(index, e)}>
-                    <option value="">Select Driver</option>
-                    {driversList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
+                  <label>Vehicle Category</label>
+                  <select 
+                    name="vehicleType" 
+                    value={['Truck', 'Mini Truck', 'Van', 'Mini Van', 'Prime Mover', 'Crane', 'Tipper', 'Flatbed', 'Pickup', 'Bus', ''].includes(job.vehicleType) ? job.vehicleType : (job.vehicleType ? 'Other' : '')} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'Other') {
+                        handleJobChange(index, { target: { name: 'vehicleType', value: '__OTHER__' } });
+                      } else {
+                        handleJobChange(index, { target: { name: 'vehicleType', value: val } });
+                      }
+                    }}
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Truck">Truck</option>
+                    <option value="Mini Truck">Mini Truck</option>
+                    <option value="Van">Van</option>
+                    <option value="Mini Van">Mini Van</option>
+                    <option value="Prime Mover">Prime Mover</option>
+                    <option value="Crane">Crane</option>
+                    <option value="Tipper">Tipper</option>
+                    <option value="Flatbed">Flatbed</option>
+                    <option value="Pickup">Pickup</option>
+                    <option value="Bus">Bus</option>
+                    <option value="Other">Other (Type below)</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Helper</label>
-                  <select name="helperName" value={job.helperName} onChange={(e) => handleJobChange(index, e)}>
-                    <option value="">Select Helper</option>
-                    {helpersList.map(emp => <option key={emp._id} value={emp.name}>{emp.name}</option>)}
-                  </select>
-                </div>
+
+                {(job.vehicleType === '__OTHER__' || (job.vehicleType && !['Truck', 'Mini Truck', 'Van', 'Mini Van', 'Prime Mover', 'Crane', 'Tipper', 'Flatbed', 'Pickup', 'Bus', ''].includes(job.vehicleType))) && (
+                  <div className="form-group">
+                    <label>Specify Category</label>
+                    <input 
+                      type="text" 
+                      name="vehicleType"
+                      value={job.vehicleType === '__OTHER__' ? '' : job.vehicleType} 
+                      onChange={(e) => handleJobChange(index, e)}
+                      placeholder="e.g. Forklift"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="form-grid" style={{ marginTop: '12px' }}>
                 <div className="form-group">
-                  <label>Location / Site</label>
-                  <input type="text" name="location" value={job.location} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. Colombo" />
+                  <label>Driver</label>
+                  <Autocomplete 
+                    name="driverName" 
+                    value={job.driverName} 
+                    onChange={(e) => handleJobChange(index, e)} 
+                    options={driversList.map(emp => emp.name)}
+                    placeholder="Driver name"
+                  />
                 </div>
                 <div className="form-group">
+                  <label>Helper</label>
+                  <Autocomplete 
+                    name="helperName" 
+                    value={job.helperName} 
+                    onChange={(e) => handleJobChange(index, e)} 
+                    options={helpersList.map(emp => emp.name)}
+                    placeholder="Helper name"
+                  />
+                </div>
+              </div>
+
+              <div className="form-grid-2" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Service Address</label>
+                  <input type="text" name="address" value={job.address} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. 123 Main St" />
+                </div>
+                <div className="form-group">
+                  <label>City</label>
+                  <input type="text" name="city" value={job.city} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. Colombo" />
+                </div>
+              </div>
+
+              <div className="form-grid-2" style={{ marginTop: '12px' }}>
+                <div className="form-group">
                   <label>Bill Number</label>
-                  <input type="text" name="billNumber" value={job.billNumber} onChange={(e) => handleJobChange(index, e)} placeholder="e.g. BL-2607" />
+                  <input type="text" name="billNumber" value={job.billNumber} onChange={(e) => handleJobChange(index, e)} placeholder="Auto-generated" />
                 </div>
                 <div className="form-group">
                   <label>Time Sheet No</label>
@@ -330,6 +467,22 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
                   </select>
                 </div>
               </div>
+
+              {job.isExternal && (
+                <div className="form-group" style={{ marginTop: '12px', background: '#FFF7ED', padding: '10px', borderRadius: '8px', border: '1px solid #FFEDD5' }}>
+                  <label style={{ color: '#9A3412', fontWeight: 'bold' }}>External Hire Cost (Expense Amount) *</label>
+                  <input 
+                    type="number" 
+                    name="externalCost" 
+                    value={job.externalCost === 0 ? '' : job.externalCost} 
+                    onChange={(e) => handleJobChange(index, e)} 
+                    placeholder="Amount paid to external owner"
+                    style={{ borderColor: '#FDBA74' }}
+                    required={job.isExternal}
+                  />
+                  <small style={{ color: '#C2410C' }}>This will be automatically added to Expenses.</small>
+                </div>
+              )}
 
               <div className="form-group" style={{ marginTop: '12px' }}>
                 <label>Details / Remarks</label>

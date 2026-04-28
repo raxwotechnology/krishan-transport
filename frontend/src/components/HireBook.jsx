@@ -29,7 +29,7 @@ const HireBook = () => {
   const [searchQuery, setSearchQuery] = React.useState('');
 
   // Simplified Table Columns
-  const tableColumns = ['DATE', 'BILL#', 'COMPANY', 'VEHICLE', 'LOCATION', 'TOTAL', 'STATUS', 'ACTION'];
+  const tableColumns = ['DATE', 'BILL#', 'COMPANY', 'VEHICLE', 'CITY', 'TOTAL', 'STATUS', 'ACTION'];
   
   React.useEffect(() => {
     fetchRecords();
@@ -56,7 +56,8 @@ const HireBook = () => {
         timeSheetNumber: item.timeSheetNumber || '—',
         client:     item.client || '—',
         vehicle:    item.vehicle || '—',
-        location:   item.location || '—',
+        address:    item.address || (item.location ? '—' : '—'), 
+        city:       item.city    || item.location || '—',
         driverName: item.driverName || '—',
         helperName: item.helperName || '—',
         startTime:  item.startTime  || '—',
@@ -111,7 +112,8 @@ const HireBook = () => {
       const matchVehicle = !selectedVehicle || r.vehicle === selectedVehicle;
       const matchSearch = !searchQuery || 
         r.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.billNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.timeSheetNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.driverName?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -180,14 +182,15 @@ const HireBook = () => {
 
   const handleExportPDF = () => {
     // PDF Report ALWAYS contains full 15+ detail columns as requested
-    const exportColumns = ['DATE', 'BILL#', 'TS#', 'COMPANY', 'VEHICLE', 'LOCATION', 'DRIVER', 'HELPER', 'START', 'END', 'HOURS', 'MIN HRS', 'BILL AMT', 'D COST', 'COMM', 'TOTAL', 'STATUS'];
+    const exportColumns = ['DATE', 'BILL#', 'TS#', 'COMPANY', 'VEHICLE', 'ADDRESS', 'CITY', 'DRIVER', 'HELPER', 'START', 'END', 'HOURS', 'MIN HRS', 'BILL AMT', 'D COST', 'COMM', 'TOTAL', 'STATUS'];
     const exportData = filteredRecords.map(r => [
       r.date || '—',
       r.billNumber || '—',
       r.timeSheetNumber || '—',
       r.client || '—',
       r.vehicle || '—',
-      r.location || '—',
+      r.address || '—',
+      r.city || '—',
       r.driverName || '—',
       r.helperName || '—',
       r.startTime || '—',
@@ -237,7 +240,7 @@ const HireBook = () => {
           <Search className="search-icon" size={20} style={{ minWidth: '20px' }} />
           <input 
             type="text" 
-            placeholder="Search client, bill, TS#, location..." 
+            placeholder="Search client, bill, city, address..." 
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />

@@ -26,7 +26,8 @@ const InvoiceSchema = new mongoose.Schema({
   totalAmount: { type: Number, required: true },
   
   status: { type: String, enum: ['Draft', 'Sent', 'Paid', 'Cancelled'], default: 'Draft' },
-  remarks: { type: String }
+  remarks: { type: String },
+  hireId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Invoice', InvoiceSchema);

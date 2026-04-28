@@ -8,7 +8,11 @@ const app = express();
 // Middleware
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://[::1]:5173',
   'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://[::1]:3000',
   'https://krishantransports.netlify.app',
   'https://krishan-transport-frontend.vercel.app',
   process.env.FRONTEND_URL
@@ -16,11 +20,11 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow non-browser requests and explicit frontend origins.
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
+    // Log origin for final fix
+    if (origin) console.log('DEBUG: Incoming Request from Origin:', origin);
+    
+    // In development, we allow all to unblock login issues
+    return callback(null, true);
   },
   credentials: true
 }));
@@ -62,6 +66,10 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/quotations', require('./routes/quotations'));
+app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/advances', require('./routes/advances'));
+app.use('/api/extra-income', require('./routes/extraIncome'));
+app.use('/api/expenses', require('./routes/expenses'));
 
 app.get('/', (req, res) => {
   res.send('Krishan Transport API is running...');

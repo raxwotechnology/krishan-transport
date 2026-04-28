@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import { clientAPI, vehicleAPI } from '../services/api';
+import Autocomplete from './Autocomplete';
+import '../styles/forms.css';
 
 /* ── Helpers ───────────────────────────────────────────────── */
 const defaultForm = () => ({
@@ -55,8 +57,8 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
   const fetchLinkedData = async () => {
     try {
       const [cRes, vRes] = await Promise.all([
-        api.get('/clients'),
-        api.get('/vehicles'),
+        clientAPI.get(),
+        vehicleAPI.get(),
       ]);
       setClients(Array.isArray(cRes.data) ? cRes.data : []);
       setVehicles(Array.isArray(vRes.data) ? vRes.data : []);
@@ -69,6 +71,13 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const updated = { ...formData, [name]: value };
+
+    // Auto-fill type if selecting existing vehicle
+    if (name === 'vehicleNo') {
+      const vehicleObj = vehicles.find(v => v.number === value);
+      if (vehicleObj) updated.vehicleType = vehicleObj.type || '';
+    }
+
     updated.totalAmount = calcTotal(updated);
     setFormData(updated);
   };
@@ -89,6 +98,17 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    
+    // Auto-create missing records
+    try {
+      if (formData.clientName && !clients.find(c => c.name.toLowerCase() === formData.clientName.toLowerCase())) {
+        await clientAPI.create({ name: formData.clientName, status: 'Active' });
+      }
+      if (formData.vehicleNo && !vehicles.find(v => v.number.toLowerCase() === formData.vehicleNo.toLowerCase())) {
+        await vehicleAPI.create({ number: formData.vehicleNo, status: 'Active' });
+      }
+    } catch (err) { console.error('Auto-creation failed', err); }
+
     try {
       await onSubmit({ ...formData, totalAmount: calcTotal(formData) });
     } finally {
@@ -111,10 +131,14 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
 
             <div className="form-group">
               <label>Client Name *</label>
-              <select name="clientName" value={formData.clientName} onChange={handleChange} required>
-                <option value="">Select Client</option>
-                {clients.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-              </select>
+              <Autocomplete 
+                name="clientName" 
+                value={formData.clientName} 
+                onChange={handleChange} 
+                options={clients.map(c => c.name)}
+                placeholder="Client name"
+                required
+              />
             </div>
 
             <div className="form-group">
@@ -129,14 +153,13 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
             {/* Vehicle Number — triggers auto-fill of type */}
             <div className="form-group">
               <label>Vehicle Number</label>
-              <select name="vehicleNo" value={formData.vehicleNo} onChange={handleVehicleChange}>
-                <option value="">Select Vehicle</option>
-                {vehicles.map(v => (
-                  <option key={v._id} value={v.number}>
-                    {v.number}{v.type ? ` — ${v.type}` : ''}
-                  </option>
-                ))}
-              </select>
+              <Autocomplete 
+                name="vehicleNo" 
+                value={formData.vehicleNo} 
+                onChange={handleChange} 
+                options={vehicles.map(v => v.number)}
+                placeholder="Vehicle No"
+              />
             </div>
 
             {/* Vehicle Type — auto-filled but still editable */}

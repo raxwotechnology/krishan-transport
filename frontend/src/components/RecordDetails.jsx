@@ -7,6 +7,9 @@ const RecordDetails = ({ data, type }) => {
   if (!data) return null;
 
   const formatDate = (val) => {
+    if (val === true) return 'Yes / Active';
+    if (val === false) return 'No / Inactive';
+    if (val === 0) return '0';
     if (!val) return '—';
     if (val instanceof Date) return val.toLocaleDateString();
     if (typeof val === 'string') {
@@ -29,7 +32,13 @@ const RecordDetails = ({ data, type }) => {
         {fields.map((f, i) => (
           <div key={i} className="detail-field">
             <label>{f.label}</label>
-            <p>{data[f.key] !== undefined && data[f.key] !== '' ? formatDate(data[f.key]) : '—'}</p>
+            <p>
+              {data[f.key] !== undefined && data[f.key] !== '' 
+                ? (f.key.toLowerCase().includes('salary') || f.key.toLowerCase().includes('premium') || f.key.toLowerCase().includes('rate') || f.key.toLowerCase().includes('amount') || f.key.toLowerCase().includes('fee') || f.key.toLowerCase().includes('earnings') || f.key.toLowerCase().includes('allowance') || f.key.toLowerCase().includes('pay') || f.key.toLowerCase().includes('incentive') || f.key.toLowerCase().includes('advance') || f.key.toLowerCase().includes('total') || f.key.toLowerCase().includes('cost')) && !isNaN(data[f.key]) && data[f.key] !== null
+                   ? `LKR ${Number(data[f.key]).toLocaleString()}`
+                   : formatDate(data[f.key]) 
+                : '—'}
+            </p>
           </div>
         ))}
       </div>
@@ -43,7 +52,8 @@ const RecordDetails = ({ data, type }) => {
       { label: 'Time Sheet No', key: 'timeSheetNumber' },
       { label: 'Company Name', key: 'client' },
       { label: 'Vehicle Number', key: 'vehicle' },
-      { label: 'Location / Site', key: 'location' }
+      { label: 'Service Address', key: 'address' },
+      { label: 'City', key: 'city' }
     ]},
     { title: 'Personnel', fields: [
       { label: 'Driver Name', key: 'driverName' },
@@ -76,7 +86,8 @@ const RecordDetails = ({ data, type }) => {
       { label: 'Date',          key: 'date' },
       { label: 'Company',       key: 'client' },
       { label: 'Vehicle No',    key: 'vehicle' },
-      { label: 'Location',      key: 'location' },
+      { label: 'City',          key: 'city' },
+      { label: 'Address',       key: 'address' },
     ]},
     { title: 'Time Tracking', fields: [
       { label: 'Start Time',       key: 'startTime' },
@@ -104,16 +115,16 @@ const RecordDetails = ({ data, type }) => {
       { label: 'Site', key: 'site' },
       { label: 'Vehicle', key: 'vehicleNo' }
     ]},
-    { title: 'Job Description', fields: [
-      { label: 'Description', key: 'jobDescription' }
+    { title: 'Job Information', fields: [
+      { label: 'Description', key: 'jobDescription' },
+      { label: 'Start Time', key: 'startTime' },
+      { label: 'End Time', key: 'endTime' }
     ]},
     { title: 'Pricing Breakdown', fields: [
-      { label: 'Units', key: 'totalUnits' },
-      { label: 'Unit Type', key: 'unitType' },
+      { label: 'Total Units (Hours)', key: 'totalUnits' },
       { label: 'Rate / Unit', key: 'ratePerUnit' },
-      { label: 'Transport', key: 'transportCharge' },
+      { label: 'Transport Charge', key: 'transportCharge' },
       { label: 'Other Charges', key: 'otherCharges' },
-      { label: 'Other Desc', key: 'otherChargesDescription' },
       { label: 'Grand Total', key: 'totalAmount' },
       { label: 'Status', key: 'status' }
     ]}
@@ -166,13 +177,76 @@ const RecordDetails = ({ data, type }) => {
     { title: 'Employee Information', fields: [
       { label: 'Pay Month', key: 'month' },
       { label: 'Employee Name', key: 'employee' },
-      { label: 'Primary Vehicle', key: 'vehicle' }
+      { label: 'Jobs Done', key: 'jobsCount' },
+      { label: 'Working Days', key: 'workingDays' },
+      { label: 'Total Hours', key: 'totalHours' }
     ]},
-    { title: 'Financial Breakdown', fields: [
+    { title: 'Earnings Breakdown', fields: [
       { label: 'Basic Salary', key: 'basic' },
-      { label: 'Incentives / Bonuses', key: 'incentive' },
+      { label: 'Hourly Earnings', key: 'hourlyEarnings' },
+      { label: 'Daily Allowance', key: 'dailyAllowance' },
+      { label: 'Attendance Bonus', key: 'attendanceBonus' },
+      { label: 'Attendance Penalty', key: 'attendancePenalty' },
+      { label: 'Incentives (Manual)', key: 'incentive' },
       { label: 'Advance Deductions', key: 'advance' },
-      { label: 'Net Payable Amount', key: 'netPay' }
+      { label: 'Final Net Payable', key: 'netPay' }
+    ]}
+  ];
+
+  const employeeFields = [
+    { title: 'Personal Information', fields: [
+      { label: 'Full Name', key: 'name' },
+      { label: 'NIC Number', key: 'nic' },
+      { label: 'Contact Number', key: 'contact' },
+      { label: 'Role', key: 'role' },
+      { label: 'Status', key: 'status' }
+    ]},
+    { title: 'Employment Details', fields: [
+      { label: 'Joined Date', key: 'joinedDate' },
+      { label: 'Basic Salary (Monthly)', key: 'basicSalary' },
+      { label: 'Hourly Rate (Hires)', key: 'hourlyRate' }
+    ]},
+    { title: 'System Access', fields: [
+      { label: 'Username', key: 'username' }
+    ]}
+  ];
+
+  const clientFields = [
+    { title: 'Client Information', fields: [
+      { label: 'Client Name', key: 'name' },
+      { label: 'Contact Number', key: 'contact' },
+      { label: 'Email', key: 'email' },
+      { label: 'Address', key: 'address' }
+    ]},
+    { title: 'Financial Summary', fields: [
+      { label: 'Total Hires', key: 'totalHires' },
+      { label: 'Outstanding Balance', key: 'outstanding' },
+      { label: 'Status', key: 'status' }
+    ]}
+  ];
+
+  const vehicleFields = [
+    { title: 'Vehicle Information', fields: [
+      { label: 'Vehicle Number', key: 'number' },
+      { label: 'Vehicle Type', key: 'type' },
+      { label: 'Model', key: 'model' },
+      { label: 'Engine Number', key: 'engineNumber' },
+      { label: 'Chassis Number', key: 'chassisNumber' }
+    ]},
+    { title: 'Leasing & Finance', fields: [
+      { label: 'Leasing Status', key: 'hasLeasing' },
+      { label: 'Leasing Company', key: 'leasingCompany' },
+      { label: 'Monthly Premium', key: 'monthlyPremium' },
+      { label: 'Payment Due Day', key: 'leaseDueDate' },
+      { label: 'Final Payment Date', key: 'leaseFinalDate' }
+    ]},
+    { title: 'Compliance & Renewals', fields: [
+      { label: 'Insurance Expiration', key: 'insuranceExpirationDate' },
+      { label: 'License Expiration', key: 'licenseExpirationDate' },
+      { label: 'Safety Certificate Expiry', key: 'safetyExpirationDate' }
+    ]},
+    { title: 'Status', fields: [
+      { label: 'Current Status', key: 'status' }
     ]}
   ];
 
@@ -182,7 +256,10 @@ const RecordDetails = ({ data, type }) => {
     'diesel': dieselFields,
     'invoice': invoiceFields,
     'quotation': quotationFields,
-    'salary': salaryFields
+    'salary': salaryFields,
+    'employee': employeeFields,
+    'client': clientFields,
+    'vehicle': vehicleFields
   };
 
   const sections = sectionsMap[type] || [];
@@ -200,6 +277,49 @@ const RecordDetails = ({ data, type }) => {
         </div>
       )}
       {sections.map((s, i) => <DetailSection key={i} title={s.title} fields={s.fields} />)}
+      
+      {/* Helper Shift Breakdown */}
+      {type === 'salary' && (data.role === 'Helper' || data.rawData?.role === 'Helper') && (data.shifts || data.rawData?.shifts) && (
+        <div className="detail-section" style={{ marginTop: '20px' }}>
+          <h4 className="detail-section-title">Helper Shift Breakdown (One by One)</h4>
+          <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid #E2E8F0', color: '#64748B' }}>
+                  <th style={{ padding: '8px' }}>Date</th>
+                  <th style={{ padding: '8px' }}>Shift</th>
+                  <th style={{ padding: '8px' }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.shifts || data.rawData?.shifts).map((s, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '8px' }}>{new Date(s.date).toLocaleDateString()}</td>
+                    <td style={{ padding: '8px' }}>
+                      <span style={{ 
+                        padding: '2px 8px', 
+                        borderRadius: '4px', 
+                        fontSize: '0.75rem',
+                        backgroundColor: s.shift === 'Morning' ? '#DBEAFE' : '#FEF3C7',
+                        color: s.shift === 'Morning' ? '#1E40AF' : '#92400E'
+                      }}>
+                        {s.shift}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px', fontWeight: '600' }}>LKR {s.amount.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ backgroundColor: '#F8FAFC', fontWeight: 'bold' }}>
+                  <td colSpan="2" style={{ padding: '8px', textAlign: 'right' }}>Total Shift Earnings:</td>
+                  <td style={{ padding: '8px' }}>LKR {(data.shifts || data.rawData?.shifts).reduce((sum, s) => sum + s.amount, 0).toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

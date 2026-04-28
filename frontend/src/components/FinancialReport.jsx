@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Download, TrendingUp, TrendingDown, Wallet, Fuel, FileText } from 'lucide-react';
-import { hireAPI, dieselAPI, salaryAPI, paymentAPI } from '../services/api';
+import { Download, TrendingUp, TrendingDown, Wallet, Fuel, FileText, RefreshCw } from 'lucide-react';
+import { hireAPI, dieselAPI, salaryAPI, paymentAPI, extraIncomeAPI, expenseAPI, vehicleAPI } from '../services/api';
 import logoUrl from '../logo.png';
 import '../styles/report.css';
 
@@ -13,7 +13,7 @@ const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
 const FinancialReport = () => {
-  const [data, setData] = useState({ hires: [], diesel: [], salaries: [], payments: [] });
+  const [data, setData] = useState({ hires: [], diesel: [], salaries: [], payments: [], extraIncome: [], expenses: [], vehicles: [] });
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('All');
@@ -21,20 +21,26 @@ const FinancialReport = () => {
   const reportRef = useRef(null);
 
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
+    const fetchAll = async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
       try {
-        const [h, d, s, p] = await Promise.all([
+        const [h, d, s, p, ei, ex, v] = await Promise.all([
           hireAPI.get(),
           dieselAPI.get(),
           salaryAPI.get(),
-          paymentAPI.get()
+          paymentAPI.get(),
+          extraIncomeAPI.get(),
+          expenseAPI.get(),
+          vehicleAPI.get()
         ]);
         setData({
           hires: h.data || [],
           diesel: d.data || [],
           salaries: s.data || [],
-          payments: p.data || []
+          payments: p.data || [],
+          extraIncome: ei.data || [],
+          expenses: ex.data || [],
+          vehicles: v.data || []
         });
       } catch (err) {
         console.error('Report fetch failed:', err);
@@ -42,7 +48,20 @@ const FinancialReport = () => {
         setLoading(false);
       }
     };
+
     fetchAll();
+    
+    // Auto-refresh every 15 seconds silently
+    const interval = setInterval(() => fetchAll(true), 15000);
+
+    // Refresh on window focus
+    const handleFocus = () => fetchAll(true);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // ── Helper: filter records by selected month/year ──
@@ -69,22 +88,35 @@ const FinancialReport = () => {
   };
 
   const stats = useMemo(() => {
-    const fHires    = filterByPeriod(data.hires, 'date');
-    const fDiesel   = filterByPeriod(data.diesel, 'date');
-    const fSalaries = filterSalaries(data.salaries);
-    const fPayments = filterByPeriod(data.payments, 'date');
+    const fHires       = filterByPeriod(data.hires, 'date');
+    const fDiesel      = filterByPeriod(data.diesel, 'date');
+    const fSalaries    = filterSalaries(data.salaries);
+    const fPayments    = filterByPeriod(data.payments, 'date');
+    const fExtraIncome = filterByPeriod(data.extraIncome, 'date');
+    const fExpenses    = filterByPeriod(data.expenses, 'date');
 
-    const totalHire     = fHires.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-    const totalDiesel   = fDiesel.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
-    const totalSalary   = fSalaries.reduce((s, r) => s + (parseFloat(r.netPay) || 0), 0);
-    const totalPayments = fPayments.reduce((s, r) => s + (parseFloat(r.paidAmount) || 0), 0);
-    const totalExpense  = totalDiesel + totalSalary;
-    const netProfit     = totalHire - totalExpense;
+    const totalHire        = fPayments.reduce((s, r) => s + (parseFloat(r.hireAmount) || 0), 0);
+    const totalDiesel      = fDiesel.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
+    const totalSalary      = fSalaries.reduce((s, r) => s + (parseFloat(r.netPay) || 0), 0);
+    const totalPayments    = fPayments.reduce((s, r) => s + (parseFloat(r.takenAmount) || 0), 0);
+    const totalExtraIncome = fExtraIncome.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    const totalOtherExp    = fExpenses.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+
+    // Leasing Cost Calculation: assume monthly premium per vehicle if leasing is active
+    const monthlyLeaseSum = data.vehicles
+      .filter(v => v.hasLeasing && v.monthlyPremium)
+      .reduce((s, v) => s + parseFloat(v.monthlyPremium), 0);
+    
+    const totalLeasing = selectedMonth === 'All' ? (monthlyLeaseSum * 12) : monthlyLeaseSum;
+
+    const totalIncome   = totalHire + totalExtraIncome;
+    const totalExpense  = totalDiesel + totalSalary + totalOtherExp + totalLeasing;
+    const netProfit     = totalIncome - totalExpense;
 
     return {
-      fHires, fDiesel, fSalaries, fPayments,
-      totalHire, totalDiesel, totalSalary, totalPayments,
-      totalExpense, netProfit
+      fHires, fDiesel, fSalaries, fPayments, fExtraIncome, fExpenses,
+      totalHire, totalDiesel, totalSalary, totalPayments, totalExtraIncome, totalOtherExp, totalLeasing,
+      totalIncome, totalExpense, netProfit
     };
   }, [data, selectedMonth, selectedYear]);
 
@@ -165,6 +197,11 @@ const FinancialReport = () => {
 
         <div className="report-divider" />
 
+        <button className="download-btn" onClick={() => fetchAll(false)} style={{ background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <RefreshCw size={16} className={loading ? 'spinner' : ''} />
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+
         <button className="download-btn" onClick={handleDownload} disabled={downloading}>
           <Download size={16} />
           {downloading ? 'Generating PDF...' : 'Download PDF'}
@@ -227,7 +264,7 @@ const FinancialReport = () => {
                style={{ '--kpi-color': stats.netProfit >= 0 ? '#10B981' : '#EF4444' }}>
             <div className="kpi-label">Net Profit / Loss</div>
             <div className="kpi-value">LKR {stats.netProfit.toLocaleString()}</div>
-            <div className="kpi-sub">Revenue − Salary − Diesel</div>
+            <div className="kpi-sub">Total Income − Total Expenses</div>
           </div>
         </div>
 
@@ -250,11 +287,18 @@ const FinancialReport = () => {
                 <td>Income</td>
                 <td>{stats.fHires.length}</td>
                 <td className="amount-cell amount-pos">+ {stats.totalHire.toLocaleString()}</td>
-                <td>100%</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalHire / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
+              </tr>
+              <tr>
+                <td><span className="cat-badge cat-revenue">Extra Income</span></td>
+                <td>Income</td>
+                <td>{stats.fExtraIncome.length}</td>
+                <td className="amount-cell amount-pos">+ {stats.totalExtraIncome.toLocaleString()}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalExtraIncome / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
               </tr>
               <tr>
                 <td><span className="cat-badge cat-revenue">Payments Received</span></td>
-                <td>Income</td>
+                <td>Info</td>
                 <td>{stats.fPayments.length}</td>
                 <td className="amount-cell amount-pos">+ {stats.totalPayments.toLocaleString()}</td>
                 <td>—</td>
@@ -264,21 +308,35 @@ const FinancialReport = () => {
                 <td>Expense</td>
                 <td>{stats.fSalaries.length}</td>
                 <td className="amount-cell amount-neg">− {stats.totalSalary.toLocaleString()}</td>
-                <td>{stats.totalHire > 0 ? ((stats.totalSalary / stats.totalHire) * 100).toFixed(1) + '%' : '—'}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalSalary / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
               </tr>
               <tr>
                 <td><span className="cat-badge cat-expense">Fuel Cost</span></td>
                 <td>Expense</td>
                 <td>{stats.fDiesel.length}</td>
                 <td className="amount-cell amount-neg">− {stats.totalDiesel.toLocaleString()}</td>
-                <td>{stats.totalHire > 0 ? ((stats.totalDiesel / stats.totalHire) * 100).toFixed(1) + '%' : '—'}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalDiesel / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
+              </tr>
+              <tr>
+                <td><span className="cat-badge cat-expense">Leasing Payments</span></td>
+                <td>Expense</td>
+                <td>{data.vehicles.filter(v => v.hasLeasing).length} units</td>
+                <td className="amount-cell amount-neg">− {stats.totalLeasing.toLocaleString()}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalLeasing / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
+              </tr>
+              <tr>
+                <td><span className="cat-badge cat-expense">Other Expenses</span></td>
+                <td>Expense</td>
+                <td>{stats.fExpenses.length}</td>
+                <td className="amount-cell amount-neg">− {stats.totalOtherExp.toLocaleString()}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalOtherExp / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
               </tr>
               <tr className="total-row">
                 <td colSpan={3}><strong>Net Profit / Loss</strong></td>
                 <td className={`amount-cell ${stats.netProfit >= 0 ? 'amount-pos' : 'amount-neg'}`}>
                   <strong>LKR {stats.netProfit.toLocaleString()}</strong>
                 </td>
-                <td>{stats.totalHire > 0 ? ((stats.netProfit / stats.totalHire) * 100).toFixed(1) + '%' : '—'}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.netProfit / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
               </tr>
             </tbody>
           </table>
@@ -294,7 +352,7 @@ const FinancialReport = () => {
                   <div className="txn-dot" style={{ background: '#2563EB' }}></div>
                   <div className="txn-info">
                     <p>{h.client || 'Unknown Client'} — {h.vehicle || 'N/A'}</p>
-                    <span>{h.location || '—'} · {h.date ? new Date(h.date).toLocaleDateString() : '—'}</span>
+                    <span>{h.city || '—'} · {h.date ? new Date(h.date).toLocaleDateString() : '—'}</span>
                   </div>
                   <div className="txn-amount" style={{ color: '#2563EB' }}>
                     LKR {parseFloat(h.amount || 0).toLocaleString()}
@@ -319,6 +377,48 @@ const FinancialReport = () => {
                   </div>
                   <div className="txn-amount" style={{ color: '#EF4444' }}>
                     LKR {parseFloat(s.netPay || 0).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Recent Extra Income ── */}
+        {stats.fExtraIncome.length > 0 && (
+          <div className="report-section">
+            <div className="report-section-title">Other Income Sources</div>
+            <div className="transactions-list">
+              {stats.fExtraIncome.slice(0, 6).map((ei, i) => (
+                <div key={i} className="txn-item">
+                  <div className="txn-dot" style={{ background: '#10B981' }}></div>
+                  <div className="txn-info">
+                    <p>{ei.description || 'Other Income'}</p>
+                    <span>{ei.category || 'General'} · {ei.date ? new Date(ei.date).toLocaleDateString() : '—'}</span>
+                  </div>
+                  <div className="txn-amount" style={{ color: '#10B981' }}>
+                    LKR {parseFloat(ei.amount || 0).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Recent Expenses ── */}
+        {stats.fExpenses.length > 0 && (
+          <div className="report-section">
+            <div className="report-section-title">General Expenses</div>
+            <div className="transactions-list">
+              {stats.fExpenses.slice(0, 6).map((ex, i) => (
+                <div key={i} className="txn-item">
+                  <div className="txn-dot" style={{ background: '#EF4444' }}></div>
+                  <div className="txn-info">
+                    <p>{ex.description || 'Other Expense'}</p>
+                    <span>{ex.category || 'General'} · {ex.date ? new Date(ex.date).toLocaleDateString() : '—'}</span>
+                  </div>
+                  <div className="txn-amount" style={{ color: '#EF4444' }}>
+                    LKR {parseFloat(ex.amount || 0).toLocaleString()}
                   </div>
                 </div>
               ))}

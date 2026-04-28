@@ -5,81 +5,117 @@ import { amountToWords } from './numberToWords';
 
 const COMPANY_DETAILS = {
   name: 'KRISHAN TRANSPORT',
-  address: 'No. 241, Rajamaha Vihara Road, Mirihana, Kotte.',
-  phone: '072 362 7888 / 070 362 7888 / 077 508 5815',
-  email: 'krishantransport1@gmail.com',
+  address: 'No. 241, Rajamaha Vihara Rd, Mirihana, Kotte.',
+  phones: ['+94 775 085 815', '+94 723 627 888', '+94 766 779 603'],
+  email: 'krishantransport11@gmail.com',
   regNo: '73330'
 };
 
 const THEME = {
-  primary: [37, 99, 235], // Blue
-  secondary: [236, 72, 153], // Pink
-  light: [248, 250, 252], // Slate
-  text: [30, 41, 59] // Slate 800
+  primary: [15, 78, 148],   // Corporate Blue
+  secondary: [237, 125, 49], // Vibrant Orange
+  light: [248, 250, 252], 
+  text: [30, 41, 59]
+};
+
+// New: Draw the exact detailed criss-cross woven side pattern from the image
+const drawSidePattern = (doc) => {
+  const pageHeight = doc.internal.pageSize.height;
+  const blue = [15, 78, 148];
+  const orange = [237, 125, 49];
+  
+  // 1. Draw the vertical base lines (3 distinct thin bars)
+  doc.setFillColor(...blue);
+  doc.rect(3, 0, 1.2, pageHeight, 'F');
+  
+  doc.setFillColor(...orange);
+  doc.rect(5.5, 0, 1.2, pageHeight, 'F');
+  
+  doc.setFillColor(...blue);
+  doc.rect(8, 0, 1.2, pageHeight, 'F');
+
+  // 2. Draw the woven criss-cross geometry
+  doc.setLineWidth(1.2);
+  for (let y = -20; y < pageHeight; y += 15) {
+    // Blue Criss-Cross Lines
+    doc.setDrawColor(...blue);
+    doc.line(3, y, 9.2, y + 15);
+    doc.line(3, y + 15, 9.2, y);
+
+    // Orange Criss-Cross Lines (Offset for weaving effect)
+    doc.setDrawColor(...orange);
+    doc.line(3, y + 7.5, 9.2, y + 22.5);
+    doc.line(3, y + 22.5, 9.2, y + 7.5);
+  }
+  
+  // Clean thin blue line on the inner edge
+  doc.setFillColor(...blue);
+  doc.rect(10.5, 0, 0.5, pageHeight, 'F');
 };
 
 // Helper for positioning between tables
 const safeGetY = (doc, fallback = 160) => {
   if (doc.lastAutoTable && doc.lastAutoTable.finalY) return doc.lastAutoTable.finalY;
-  if (doc.autoTable && doc.autoTable.previous && doc.autoTable.previous.finalY) return doc.autoTable.previous.finalY;
   return fallback;
 };
 
 const drawHeader = (doc, title) => {
   const pageWidth = doc.internal.pageSize.width;
-  
-  // Top Accent Bar
-  doc.setFillColor(...THEME.primary);
-  doc.rect(0, 0, pageWidth, 15, 'F');
+  drawSidePattern(doc);
 
-  // Company Details (Right Aligned)
-  doc.setFontSize(22);
-  doc.setTextColor(...THEME.primary);
-  doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_DETAILS.name, pageWidth - 15, 30, { align: 'right' });
-
-  doc.setFontSize(9);
-  doc.setTextColor(...THEME.text);
-  doc.setFont('helvetica', 'normal');
-  doc.text(COMPANY_DETAILS.address, pageWidth - 15, 36, { align: 'right' });
-  doc.text(`Hotline: ${COMPANY_DETAILS.phone}`, pageWidth - 15, 41, { align: 'right' });
-  doc.text(`Email: ${COMPANY_DETAILS.email}`, pageWidth - 15, 46, { align: 'right' });
-  doc.text(`Reg No: ${COMPANY_DETAILS.regNo}`, pageWidth - 15, 51, { align: 'right' });
-
-  // Document Title Banner
-  doc.setFillColor(...THEME.light);
-  doc.rect(15, 60, pageWidth - 30, 12, 'F');
+  // Document Title Banner (Stylized)
+  doc.setFillColor(241, 245, 249);
+  doc.rect(45, 60, pageWidth - 60, 10, 'F');
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...THEME.primary);
-  doc.text(title.toUpperCase(), pageWidth / 2, 68, { align: 'center' });
+  doc.text(title.toUpperCase(), (pageWidth + 45) / 2, 67, { align: 'center', charSpace: 1.5 });
 };
 
 const drawFooter = (doc) => {
   const pageHeight = doc.internal.pageSize.height;
   const pageWidth = doc.internal.pageSize.width;
+  const footerStart = pageHeight - 45;
 
-  doc.setFontSize(8);
-  doc.setTextColor(150);
-  doc.text('This is a formal business document issued by Krishan Transport Management System.', pageWidth / 2, pageHeight - 15, { align: 'center' });
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-  
-  // Bottom Bar
-  doc.setFillColor(...THEME.primary);
-  doc.rect(0, pageHeight - 5, pageWidth, 5, 'F');
+  // Horizontal Line
+  doc.setDrawColor(100);
+  doc.setLineWidth(0.3);
+  doc.line(18, footerStart, pageWidth - 15, footerStart);
+
+  // Footer Content
+  const textY = footerStart + 12;
+
+  // Phone Section
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONTACT US', 22, textY - 4);
+  doc.setFont('helvetica', 'normal');
+  COMPANY_DETAILS.phones.forEach((p, i) => {
+    doc.text(p, 22, textY + (i * 4));
+  });
+
+  // Email Section
+  doc.setFont('helvetica', 'bold');
+  doc.text('EMAIL ADDRESS', 75, textY - 4);
+  doc.setFont('helvetica', 'normal');
+  doc.text(COMPANY_DETAILS.email, 75, textY);
+
+  // Location Section
+  doc.setFont('helvetica', 'bold');
+  doc.text('VISIT US', 125, textY - 4);
+  doc.setFont('helvetica', 'normal');
+  const addr = doc.splitTextToSize(COMPANY_DETAILS.address, 45);
+  doc.text(addr, 125, textY);
+
+  // QR Code Placeholder (Bottom Right)
+  doc.setDrawColor(15, 78, 148);
+  doc.setLineWidth(0.5);
+  doc.rect(pageWidth - 35, footerStart + 5, 20, 20);
+  doc.setFontSize(5);
+  doc.text('SCAN FOR', pageWidth - 25, footerStart + 15, { align: 'center' });
+  doc.text('VERIFICATION', pageWidth - 25, footerStart + 18, { align: 'center' });
 };
 
-const addSignature = (doc, y) => {
-    const pageWidth = doc.internal.pageSize.width;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    doc.line(15, y, 75, y);
-    doc.text('Prepared By', 15, y + 5);
-
-    doc.line(pageWidth - 75, y, pageWidth - 15, y);
-    doc.text('Authorized & Approved', pageWidth - 75, y + 5, { align: 'left' });
-};
 
 const safeDate = (d) => {
     try {
@@ -132,15 +168,16 @@ export const generateInvoicePDF = async (invoice) => {
 
     // Table
     const tableData = [
-      ['Job Description', invoice.jobDescription || 'Professional Transport Services'],
-      ['Unit Billing Type', invoice.unitType || 'Hours'],
-      ['Total Units', `${invoice.totalUnits || 0}`],
-      ['Rate Per Unit', `LKR ${(invoice.ratePerUnit || 0).toLocaleString()}`]
+      ['Service Description', invoice.jobDescription || 'Professional Transport Services'],
+      ['Job Duration', `${invoice.startTime || '—'} to ${invoice.endTime || '—'}`],
+      ['Total Billed Units', `${invoice.totalUnits || 0} ${invoice.unitType || 'Hours'}`],
+      ['Rate per Unit', `LKR ${(invoice.ratePerUnit || 0).toLocaleString()}`],
+      ['Transport Charge', `LKR ${(invoice.transportCharge || 0).toLocaleString()}`]
     ];
 
     autoTable(doc, {
       startY: 120,
-      head: [['SERVICE CATEGORY', 'DETAILS']],
+      head: [['BILLING ITEM', 'DESCRIPTION / VALUE']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: THEME.primary, fontSize: 10 },
@@ -185,7 +222,6 @@ export const generateInvoicePDF = async (invoice) => {
     doc.text('Account Name: Krishan Transport Service', 20, wordsY + 28);
     doc.text('Account No: 1234-5678-9012 (Bank of Ceylon - Mirihana)', 20, wordsY + 33);
 
-    addSignature(doc, doc.internal.pageSize.height - 45);
     drawFooter(doc);
     doc.save(`Invoice_${invoice.invoiceNo || 'New'}.pdf`);
   } catch (error) {
@@ -272,7 +308,6 @@ export const generateQuotationPDF = async (quote) => {
     const terms = doc.splitTextToSize(quote.termsAndConditions || 'Standard terms apply.', pageWidth - 30);
     doc.text(terms, 15, termsY + 6);
 
-    addSignature(doc, doc.internal.pageSize.height - 45);
     drawFooter(doc);
     doc.save(`Quotation_${quote.quotationNo || 'New'}.pdf`);
   } catch (error) {

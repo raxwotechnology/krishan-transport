@@ -12,6 +12,8 @@ import {
   Car,
   FileText,
   FileCheck,
+  Wallet,
+  TrendingDown,
   X
 } from 'lucide-react';
 import './Sidebar.css';
@@ -22,12 +24,16 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen
     { id: 'dashboard',  label: 'Dashboard',        icon: LayoutDashboard },
     { id: 'hires',      label: 'Hire Book',         icon: Truck },
     { id: 'salaries',   label: 'Salary Book',       icon: Contact },
+    { id: 'attendance', label: 'Attendance',        icon: Users },
     { id: 'diesel',     label: 'Fuel Book',          icon: Fuel },
     { id: 'payments',   label: 'Payment Book',       icon: CreditCard },
     { id: 'invoices',   label: 'Invoices',           icon: FileText },
     { id: 'quotations', label: 'Quotations',         icon: FileCheck },
+    { id: 'extraIncome', label: 'Extra Income',      icon: Wallet },
+    { id: 'expenses',    label: 'Expenses',          icon: TrendingDown },
     { id: 'clients',    label: 'Clients',            icon: Users },
     { id: 'vehicles',   label: 'Vehicles',           icon: Car },
+    { id: 'compliance', label: 'Compliance Book',    icon: FileCheck },
     { id: 'employees',  label: 'Employees',          icon: UserCircle },
     { id: 'reports',    label: 'Financial Report',   icon: FileBarChart },
   ];
@@ -35,7 +41,7 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen
   const menuItems = allMenuItems.filter(item => {
     // Treat everyone EXCEPT Admin and Manager as restricted employees
     if (role !== 'Admin' && role !== 'Manager') {
-      return ['dashboard', 'hires', 'diesel', 'vehicles'].includes(item.id);
+      return ['dashboard', 'hires', 'diesel', 'vehicles', 'compliance'].includes(item.id);
     }
     return true; // Manager and Admin see all
   });

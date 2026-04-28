@@ -12,6 +12,10 @@ import Employees from './components/Employees';
 import FinancialReport from './components/FinancialReport';
 import InvoiceBook from './components/InvoiceBook';
 import QuotationBook from './components/QuotationBook';
+import AttendanceBook from './components/AttendanceBook';
+import ExtraIncome from './components/ExtraIncome';
+import Expenses from './components/Expenses';
+import ComplianceBook from './components/ComplianceBook';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
 import './App.css';
@@ -24,10 +28,14 @@ const PAGE_TITLES = {
   payments: 'Payment Book',
   clients: 'Clients',
   vehicles: 'Vehicles',
+  compliance: 'Compliance & Leasing',
   employees: 'Employees',
   reports: 'Financial Report',
   invoices: 'Professional Invoices',
   quotations: 'Service Quotations',
+  attendance: 'Staff Attendance',
+  extraIncome: 'Extra Income Book',
+  expenses: 'Expense Book',
 };
 
 const App = () => {
@@ -46,8 +54,35 @@ const App = () => {
     setSelectedRole(null);
   };
 
+  // ── Session Timeout Logic (15 Minutes) ──
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timeout;
+    const TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+    const resetTimer = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        handleLogout();
+        alert('Your session has expired due to inactivity. Please log in again.');
+      }, TIMEOUT_MS);
+    };
+
+    // Events to track activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    events.forEach(e => document.addEventListener(e, resetTimer));
+
+    resetTimer(); // Start timer on mount
+
+    return () => {
+      clearTimeout(timeout);
+      events.forEach(e => document.removeEventListener(e, resetTimer));
+    };
+  }, [isAuthenticated]);
+
   const renderContent = () => {
-    const restrictedTabs = ['employees', 'reports', 'salaries', 'clients', 'payments', 'invoices', 'quotations'];
+    const restrictedTabs = ['employees', 'reports', 'salaries', 'clients', 'payments', 'invoices', 'quotations', 'extraIncome', 'expenses', 'attendance'];
     if (userRole === 'Employee' && restrictedTabs.includes(activeTab)) {
       return <Dashboard key={activeTab} role={userRole} name={userName} />;
     }
@@ -60,10 +95,14 @@ const App = () => {
       case 'payments':  return <PaymentBook />;
       case 'clients':   return <Clients />;
       case 'vehicles':  return <Vehicles />;
+      case 'compliance': return <ComplianceBook />;
       case 'employees': return <Employees />;
       case 'reports':   return <FinancialReport />;
       case 'invoices':   return <InvoiceBook />;
       case 'quotations': return <QuotationBook />;
+      case 'attendance': return <AttendanceBook />;
+      case 'extraIncome': return <ExtraIncome />;
+      case 'expenses': return <Expenses />;
       default:          return <Dashboard role={userRole} name={userName} />;
     }
   };

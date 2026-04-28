@@ -22,13 +22,18 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
       setFormData({
         name: '', nic: '', role: 'Driver', contact: '',
         joinedDate: new Date().toISOString().split('T')[0],
-        status: 'Active', username: '', password: ''
+        status: 'Active', username: '', password: '',
+        basicSalary: 0, hourlyRate: 0
       });
     }
   }, [initialData]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type } = e.target;
+    setFormData({ 
+      ...formData, 
+      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value 
+    });
   };
 
   const handleSubmit = (e) => {
@@ -91,6 +96,20 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Salary Configuration</p>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label>Basic Salary (Monthly)</label>
+              <input type="number" name="basicSalary" value={formData.basicSalary} onChange={handleChange} placeholder="e.g. 30000" />
+            </div>
+            <div className="form-group">
+              <label>Hourly Rate (Hires)</label>
+              <input type="number" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} placeholder="e.g. 200" />
             </div>
           </div>
         </div>

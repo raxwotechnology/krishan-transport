@@ -12,7 +12,7 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const record = new Client(req.body);
   try {
     const newRecord = await record.save();

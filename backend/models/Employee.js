@@ -8,6 +8,8 @@ const EmployeeSchema = new mongoose.Schema({
   contact:    { type: String },
   joinedDate: { type: Date, default: Date.now },
   status:     { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+  basicSalary: { type: Number, default: 0 },
+  hourlyRate:  { type: Number, default: 0 },
   username:   { type: String, unique: true, sparse: true },
   password:   { type: String }
 }, { timestamps: true });

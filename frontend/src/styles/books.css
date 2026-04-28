@@ -117,3 +117,40 @@
     justify-content: flex-end;
   }
 }
+
+/* ── Tab Switcher ── */
+.tab-switcher {
+  display: flex;
+  gap: 8px;
+  background: #E2E8F0;
+  padding: 4px;
+  border-radius: var(--r-md);
+  margin-bottom: 20px;
+}
+
+.tab-switcher button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tab-switcher button.active-tab {
+  background: #FFFFFF;
+  color: #2563EB;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tab-switcher button:hover:not(.active-tab) {
+  background: rgba(255,255,255,0.4);
+  color: #1E293B;
+}
+

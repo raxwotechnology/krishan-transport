@@ -5,7 +5,8 @@ const HireSchema = new mongoose.Schema({
   date:             { type: Date, default: Date.now },
   client:           { type: String, required: true },
   vehicle:          { type: String, required: true },
-  location:         { type: String },
+  address:          { type: String },
+  city:             { type: String },
   
   // Personnel
   driverName:       { type: String },
@@ -35,6 +36,11 @@ const HireSchema = new mongoose.Schema({
   totalAmount:      { type: Number, default: 0 },
   details:          { type: String },
   
+  // External Vehicle Info
+  isExternal:       { type: Boolean, default: false },
+  externalCost:     { type: Number, default: 0 },
+  vehicleType:      { type: String },
+
   status: { type: String, enum: ['Pending', 'Completed', 'Paid'], default: 'Pending' }
 }, { timestamps: true });
 

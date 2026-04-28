@@ -38,13 +38,15 @@ const DataTable = ({ columns, data, emptyMessage, loading, onRowClick }) => {
                       'VEHICLE NUMBER': 'number',
                       'VEHICLE TYPE': 'vehicleType',
                       'LOCATION': 'location',
+                      'CITY': 'city',
+                      'ADDRESS': 'address',
                       'SITE': 'site',
                       'AMOUNT': 'amount',
                       'TOTAL': 'totalAmount_disp',
                       'TOTAL COST': 'totalCost',
                       'EST. TOTAL': 'total_disp',
                       'NET PAY': 'netPay',
-                      'PAID': 'paidAmount',
+                      'PAID': 'takenAmount',
                       'ACTION': 'action',
                       'STATUS': 'status_disp',
                       'BILL#': 'billNumber',
@@ -86,7 +88,13 @@ const DataTable = ({ columns, data, emptyMessage, loading, onRowClick }) => {
                       'NAME':        'name',
                       'NIC':         'nic',
                       'HOURS':       'workingHours',
-                      'BILL AMT':    'billAmount'
+                      'HOURLY':      'hourlyEarnings',
+                      'DAILY':       'dailyAllowance',
+                      'BILL AMT':    'billAmount',
+                      'RENEWAL DATE': 'renewalDate',
+                      'DUE DATE':     'date',
+                      'FINAL DATE':   'finalDate',
+                      'MONTHLY PREMIUM': 'amount'
                     };
                     
                     // Priority: Explicit Map -> Exact Column Key -> Lowercase Column Key

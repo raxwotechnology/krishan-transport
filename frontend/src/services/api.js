@@ -47,7 +47,8 @@ const setFallback = (key, data) => localStorage.setItem(key, JSON.stringify(data
 const wrapAPI = (endpoint, storageKey) => ({
   get: async () => {
     try {
-      const res = await api.get(endpoint);
+      // Add timestamp to bypass any caching
+      const res = await api.get(`${endpoint}?t=${Date.now()}`);
       setFallback(storageKey, res.data);
       return res;
     } catch (err) {
@@ -129,6 +130,10 @@ export const vehicleAPI    = wrapAPI('/vehicles',   'kt_vehicles');
 export const employeeAPI   = wrapAPI('/employees',  'kt_employees');
 export const invoiceAPI    = wrapAPI('/invoices',   'kt_invoices');
 export const quotationAPI  = wrapAPI('/quotations', 'kt_quotations');
+export const attendanceAPI = wrapAPI('/attendance', 'kt_attendance');
+export const advanceAPI    = wrapAPI('/advances',   'kt_advances');
+export const extraIncomeAPI = wrapAPI('/extra-income', 'kt_extra_income');
+export const expenseAPI     = wrapAPI('/expenses', 'kt_expenses');
 
 export default api;
 

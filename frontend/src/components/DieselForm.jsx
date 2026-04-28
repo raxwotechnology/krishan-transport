@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { vehicleAPI, employeeAPI, dieselAPI } from '../services/api';
+import Autocomplete from './Autocomplete';
 import '../styles/forms.css';
 
 const DieselForm = ({ onSubmit, onCancel, initialData }) => {
@@ -78,8 +79,19 @@ const DieselForm = ({ onSubmit, onCancel, initialData }) => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Auto-create missing records
+    try {
+      if (formData.vehicle && !vehicles.find(v => v.number.toLowerCase() === formData.vehicle.toLowerCase())) {
+        await vehicleAPI.create({ number: formData.vehicle, status: 'Active' });
+      }
+      if (formData.employee && !employees.find(emp => emp.name.toLowerCase() === formData.employee.toLowerCase())) {
+        await employeeAPI.create({ name: formData.employee, role: 'Driver', status: 'Active' });
+      }
+    } catch (err) { console.error(err); }
+
     const total = parseFloat(formData.liters || 0) * parseFloat(formData.pricePerLiter || 0);
     onSubmit({ ...formData, total });
   };
@@ -99,21 +111,24 @@ const DieselForm = ({ onSubmit, onCancel, initialData }) => {
             </div>
             <div className="form-group">
               <label>Assigned Vehicle *</label>
-              <select name="vehicle" value={formData.vehicle} onChange={handleChange} required>
-                <option value="">Select a Vehicle</option>
-                {vehicles.map(v => (
-                  <option key={v._id} value={v.number}>{v.number}</option>
-                ))}
-              </select>
+              <Autocomplete 
+                name="vehicle" 
+                value={formData.vehicle} 
+                onChange={handleChange} 
+                options={vehicles.map(v => v.number)}
+                placeholder="Vehicle No"
+                required
+              />
             </div>
             <div className="form-group">
               <label>Driver / Staff</label>
-              <select name="employee" value={formData.employee || ''} onChange={handleChange}>
-                <option value="">— Select Employee —</option>
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp.name}>{emp.name} ({emp.role})</option>
-                ))}
-              </select>
+              <Autocomplete 
+                name="employee" 
+                value={formData.employee || ''} 
+                onChange={handleChange} 
+                options={employees.map(emp => emp.name)}
+                placeholder="Driver name"
+              />
             </div>
           </div>
         </div>

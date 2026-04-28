@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { vehicleAPI, clientAPI, paymentAPI } from '../services/api';
+import Autocomplete from './Autocomplete';
 import '../styles/books.css';
 import '../styles/forms.css';
 
@@ -8,7 +9,8 @@ const blank = () => ({
   date:         new Date().toISOString().split('T')[0],
   client:       '',
   vehicle:      '',
-  location:     '',
+  address:      '',
+  city:         '',
   startTime:    '',
   endTime:      '',
   restTime:     0,
@@ -28,6 +30,8 @@ const fromDB = (d) => ({
   ...blank(),
   ...d,
   date:       d?.date ? new Date(d.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+  address:    d?.address || '',
+  city:       d?.city    || d?.location || '',
   restTime:   d?.restTime   ?? 0,
   totalHours: d?.totalHours ?? 0,
   minimumHours: d?.minimumHours ?? 0,
@@ -134,17 +138,37 @@ const PaymentForm = ({ onSubmit, onCancel, initialData }) => {
           .filter(j => j.client === value)
           .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
         if (last) {
-          if (!prev.location)     next.location     = last.location     || '';
+          if (!prev.address) next.address = last.address || '';
+          if (!prev.city)    next.city    = last.city    || '';
           if (!prev.minimumHours) next.minimumHours = last.minimumHours || 0;
         }
+      }
+
+      /* Smart logic: if status is changed to 'Paid', auto-fill takenAmount to clear balance */
+      if (name === 'status' && value === 'Paid') {
+        const hire = parseFloat(next.hireAmount) || 0;
+        const comm = parseFloat(next.commission) || 0;
+        const dayP = parseFloat(next.dayPayment) || 0;
+        next.takenAmount = Math.max(0, +(hire - comm - dayP).toFixed(2));
       }
 
       return compute(next);
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Auto-create missing records
+    try {
+      if (form.client && !clients.find(c => c.name.toLowerCase() === form.client.toLowerCase())) {
+        await clientAPI.create({ name: form.client, status: 'Active' });
+      }
+      if (form.vehicle && !vehicles.find(v => v.number.toLowerCase() === form.vehicle.toLowerCase())) {
+        await vehicleAPI.create({ number: form.vehicle, status: 'Active' });
+      }
+    } catch (err) { console.error(err); }
+
     onSubmit({ ...form });
   };
 
@@ -165,23 +189,35 @@ const PaymentForm = ({ onSubmit, onCancel, initialData }) => {
 
             <div className="form-group">
               <label>Company Name *</label>
-              <select name="client" value={form.client} onChange={handleChange} required>
-                <option value="">— Select Client —</option>
-                {clients.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
-              </select>
+              <Autocomplete 
+                name="client" 
+                value={form.client} 
+                onChange={handleChange} 
+                options={clients.map(c => c.name)}
+                placeholder="Client name"
+                required
+              />
             </div>
 
             <div className="form-group">
               <label>Vehicle Number</label>
-              <select name="vehicle" value={form.vehicle} onChange={handleChange}>
-                <option value="">— Select Vehicle —</option>
-                {vehicles.map(v => <option key={v._id} value={v.number}>{v.number}</option>)}
-              </select>
+              <Autocomplete 
+                name="vehicle" 
+                value={form.vehicle} 
+                onChange={handleChange} 
+                options={vehicles.map(v => v.number)}
+                placeholder="Vehicle No"
+              />
             </div>
 
             <div className="form-group">
-              <label>Location / Site</label>
-              <input type="text" name="location" value={form.location} onChange={handleChange} placeholder="e.g. Colombo" />
+              <label>Service Address</label>
+              <input type="text" name="address" value={form.address} onChange={handleChange} placeholder="e.g. 123 Main St" />
+            </div>
+
+            <div className="form-group">
+              <label>City</label>
+              <input type="text" name="city" value={form.city} onChange={handleChange} placeholder="e.g. Colombo" />
             </div>
 
           </div>

@@ -6,6 +6,7 @@ import { generatePDFReport } from '../utils/reportGenerator';
 import { Download, Search, RefreshCw, PlusCircle } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
+import RecordDetails from './RecordDetails';
 
 const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData, setFormData] = React.useState(initialData || { number: '', model: '', type: '', fuelType: 'Diesel', status: 'Active' });
@@ -17,21 +18,28 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
       setFormData({ number: '', model: '', type: '', fuelType: 'Diesel', status: 'Active' });
     }
   }, [initialData]);
-  
+
   return (
-    <form className="hire-form" onSubmit={(e) => { e.preventDefault(); onSubmit(formData); }}>
+    <form className="hire-form" onSubmit={(e) => {
+      e.preventDefault();
+      const finalData = { ...formData };
+      if (finalData.type === 'Other' && finalData.customType) {
+        finalData.type = finalData.customType;
+      }
+      onSubmit(finalData);
+    }}>
       <div className="hire-form-scroll">
-        
+
         <div className="form-section">
           <p className="form-section-title">Vehicle Identity</p>
           <div className="form-group">
             <label>Registration Number (Required) *</label>
-            <input 
-              type="text" 
-              placeholder="e.g. WP-1234" 
-              required 
-              value={formData.number} 
-              onChange={e => setFormData({...formData, number: e.target.value.toUpperCase()})} 
+            <input
+              type="text"
+              placeholder="e.g. WP-1234"
+              required
+              value={formData.number}
+              onChange={e => setFormData({ ...formData, number: e.target.value.toUpperCase() })}
             />
           </div>
         </div>
@@ -41,16 +49,16 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
           <div className="form-grid-2">
             <div className="form-group">
               <label>Model / Variant</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Isuzu Elf" 
-                value={formData.model} 
-                onChange={e => setFormData({...formData, model: e.target.value})} 
+              <input
+                type="text"
+                placeholder="e.g. Isuzu Elf"
+                value={formData.model}
+                onChange={e => setFormData({ ...formData, model: e.target.value })}
               />
             </div>
             <div className="form-group">
               <label>Body Type</label>
-              <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+              <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}>
                 <option value="">Select Type</option>
                 <option value="Truck">Truck</option>
                 <option value="Mini Truck">Mini Truck</option>
@@ -65,22 +73,133 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
                 <option value="Other">Other</option>
               </select>
             </div>
+            {formData.type === 'Other' && (
+              <div className="form-group">
+                <label>Specify Category</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Forklift, Excavator"
+                  value={formData.customType || ''}
+                  onChange={e => setFormData({ ...formData, customType: e.target.value })}
+                  required
+                />
+              </div>
+            )}
           </div>
           <div className="form-grid-2" style={{ marginTop: '16px' }}>
             <div className="form-group">
               <label>Fuel Type</label>
-              <select value={formData.fuelType || 'Diesel'} onChange={e => setFormData({...formData, fuelType: e.target.value})}>
+              <select value={formData.fuelType || 'Diesel'} onChange={e => setFormData({ ...formData, fuelType: e.target.value })}>
                 <option value="Diesel">Diesel</option>
                 <option value="Petrol">Petrol</option>
               </select>
             </div>
             <div className="form-group">
               <label>Current Status</label>
-              <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+              <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
                 <option value="Active">Active</option>
                 <option value="Maintenance">Maintenance</option>
                 <option value="Inactive">Inactive</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Leasing Status</p>
+          <div className="form-group" style={{ marginBottom: '15px' }}>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={formData.hasLeasing}
+                onChange={e => setFormData({ ...formData, hasLeasing: e.target.checked })}
+              />
+              <span>This vehicle has an active lease</span>
+            </label>
+          </div>
+
+          {formData.hasLeasing && (
+            <div className="form-grid-2">
+              <div className="form-group">
+                <label>Leasing Company Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. People's Leasing"
+                  value={formData.leasingCompany || ''}
+                  onChange={e => setFormData({ ...formData, leasingCompany: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Monthly Premium (LKR)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.monthlyPremium || ''}
+                  onChange={e => setFormData({ ...formData, monthlyPremium: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Monthly Due Date (Day)</label>
+                <input
+                  type="number"
+                  min="1" max="31"
+                  placeholder="e.g. 20"
+                  value={formData.leaseDueDate || ''}
+                  onChange={e => setFormData({ ...formData, leaseDueDate: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Final Premium Date</label>
+                <input
+                  type="date"
+                  value={formData.leaseFinalDate ? formData.leaseFinalDate.split('T')[0] : ''}
+                  onChange={e => setFormData({ ...formData, leaseFinalDate: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Insurance Compliance</p>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label>Effective Date</label>
+              <input
+                type="date"
+                value={formData.insuranceEffectiveDate ? formData.insuranceEffectiveDate.split('T')[0] : ''}
+                onChange={e => setFormData({ ...formData, insuranceEffectiveDate: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Expiration Date</label>
+              <input
+                type="date"
+                value={formData.insuranceExpirationDate ? formData.insuranceExpirationDate.split('T')[0] : ''}
+                onChange={e => setFormData({ ...formData, insuranceExpirationDate: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">License & Safety Certificates</p>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label>License Expiry Date</label>
+              <input
+                type="date"
+                value={formData.licenseExpirationDate ? formData.licenseExpirationDate.split('T')[0] : ''}
+                onChange={e => setFormData({ ...formData, licenseExpirationDate: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Safety Certificate Expiry</label>
+              <input
+                type="date"
+                value={formData.safetyExpirationDate ? formData.safetyExpirationDate.split('T')[0] : ''}
+                onChange={e => setFormData({ ...formData, safetyExpirationDate: e.target.value })}
+              />
             </div>
           </div>
         </div>
@@ -107,6 +226,8 @@ const Vehicles = () => {
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [viewModalOpen, setViewModalOpen] = React.useState(false);
+  const [selectedRecord, setSelectedRecord] = React.useState(null);
   const [vehicleRecords, setVehicleRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [editingVehicle, setEditingVehicle] = React.useState(null);
@@ -114,7 +235,7 @@ const Vehicles = () => {
   const [successMsg, setSuccessMsg] = React.useState('');
   const [errorMsg, setErrorMsg] = React.useState('');
 
-  const columns = canManage 
+  const columns = canManage
     ? ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'FUEL TYPE', 'STATUS', 'ACTION']
     : ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'FUEL TYPE', 'STATUS'];
 
@@ -160,10 +281,10 @@ const Vehicles = () => {
 
   const filteredRecords = React.useMemo(() => {
     return vehicleRecords.filter(r => {
-      return !searchQuery || 
+      return !searchQuery ||
         (r.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.model  || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.type   || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (r.model || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.type || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
   }, [vehicleRecords, searchQuery]);
 
@@ -178,7 +299,7 @@ const Vehicles = () => {
     try {
       setErrorMsg('');
       const payload = { ...data, number: (data.number || '').trim() };
-      
+
       if (editingVehicle) {
         await vehicleAPI.update(editingVehicle._id, payload);
         setSuccessMsg('Vehicle updated successfully!');
@@ -190,7 +311,7 @@ const Vehicles = () => {
       setIsModalOpen(false);
       setEditingVehicle(null);
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) { 
+    } catch (err) {
       console.error(err);
       const msg = err.response?.data?.message || err.message || 'Error saving vehicle';
       setErrorMsg(msg);
@@ -223,7 +344,7 @@ const Vehicles = () => {
       v.fuelType || 'Diesel',
       v.status_text || '—'
     ]);
-    
+
     generatePDFReport({
       title: 'Fleet Inventory Report',
       columns: exportColumns,
@@ -248,9 +369,9 @@ const Vehicles = () => {
       <div className="book-filters">
         <div className="search-box">
           <Search className="search-icon" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search number, model, type..." 
+          <input
+            type="text"
+            placeholder="Search number, model, type..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -269,25 +390,37 @@ const Vehicles = () => {
           )}
         </div>
       </div>
-      
+
       {successMsg && <div className="success-banner" style={{ margin: '0 20px 20px' }}>{successMsg}</div>}
       {errorMsg && <div className="error-banner" style={{ margin: '0 20px 20px' }}>{errorMsg}</div>}
-      
-      <DataTable 
-        columns={columns} 
-        data={filteredRecords} 
-        loading={loading} 
-        emptyMessage={loading ? "Loading fleet data..." : "No vehicles registered."} 
+
+      <DataTable
+        columns={columns}
+        data={filteredRecords}
+        loading={loading}
+        onRowClick={(row) => { setSelectedRecord(row); setViewModalOpen(true); }}
+        emptyMessage={loading ? "Loading fleet data..." : "No vehicles registered."}
       />
 
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setEditingVehicle(null); }} 
+      <Modal
+        isOpen={viewModalOpen}
+        onClose={() => setViewModalOpen(false)}
+        title="Vehicle Profile Details"
+      >
+        <RecordDetails data={selectedRecord} type="vehicle" />
+        <div className="modal-footer" style={{ padding: '15px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', background: '#F8FAFC' }}>
+          <button className="secondary-btn" onClick={() => setViewModalOpen(false)}>Close</button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setEditingVehicle(null); }}
         title={editingVehicle ? 'Edit Vehicle Profile' : 'Register New Vehicle'}
       >
-        <VehicleForm 
-          onSubmit={handleAdd} 
-          onCancel={() => { setIsModalOpen(false); setEditingVehicle(null); }} 
+        <VehicleForm
+          onSubmit={handleAdd}
+          onCancel={() => { setIsModalOpen(false); setEditingVehicle(null); }}
           initialData={editingVehicle}
         />
       </Modal>

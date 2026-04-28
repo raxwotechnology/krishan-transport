@@ -73,7 +73,8 @@ const PaymentBook = () => {
     date:        item.date ? new Date(item.date).toLocaleDateString() : '—',
     client:      safe(item.client),
     vehicle:     safe(item.vehicle),
-    location:    safe(item.location),
+    address:     item.address || '—',
+    city:        item.city    || item.location || '—',
     startTime:   safe(item.startTime),
     endTime:     safe(item.endTime),
     restTime:    item.restTime != null ? `${item.restTime}min` : '—',
@@ -111,7 +112,8 @@ const PaymentBook = () => {
           r.client?.toLowerCase().includes(q) ||
           r.driverName?.toLowerCase().includes(q) ||
           r.helperName?.toLowerCase().includes(q) ||
-          r.location?.toLowerCase().includes(q);
+          r.city?.toLowerCase().includes(q) ||
+          r.address?.toLowerCase().includes(q);
         return matchV && matchS;
       });
   }, [rawRecords, selectedVehicle, searchQuery, canManage]);
@@ -169,9 +171,9 @@ const PaymentBook = () => {
 
   /* ── PDF Export ─────────────────────────────────────────────── */
   const handleExportPDF = () => {
-    const cols = ['DATE','CLIENT','VEHICLE','LOCATION','START','END','TOTAL HRS','MIN HRS','HRS IN BILL','HIRE AMT','COMMISSION','DAY PAY','TAKEN','BALANCE','STATUS'];
+    const cols = ['DATE','CLIENT','VEHICLE','ADDRESS','CITY','START','END','TOTAL HRS','MIN HRS','HRS IN BILL','HIRE AMT','COMMISSION','DAY PAY','TAKEN','BALANCE','STATUS'];
     const data = displayRows.map(r => [
-      r.date, r.client, r.vehicle, r.location,
+      r.date, r.client, r.vehicle, r.address, r.city,
       r.startTime, r.endTime,
       r.totalHours, r.minimumHours, r.hoursInBill,
       r.hireAmount, r.commission, r.dayPayment, r.takenAmount,
@@ -213,7 +215,7 @@ const PaymentBook = () => {
           <Search className="search-icon" size={20} />
           <input
             type="text"
-            placeholder="Search client, driver, helper, location…"
+            placeholder="Search client, driver, helper, city, address…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />

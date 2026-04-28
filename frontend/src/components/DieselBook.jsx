@@ -8,6 +8,7 @@ import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
+import RecordDetails from './RecordDetails';
 
 const FUEL_TYPES = ['All', 'Diesel', 'Petrol'];
 
@@ -17,6 +18,8 @@ const DieselBook = () => {
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [viewModalOpen, setViewModalOpen] = React.useState(false);
+  const [selectedRecord, setSelectedRecord] = React.useState(null);
   const [dieselRecords, setDieselRecords] = React.useState([]);
   const [vehicles, setVehicles] = React.useState([]);
   const [selectedVehicle, setSelectedVehicle] = React.useState(null);
@@ -256,8 +259,20 @@ const DieselBook = () => {
         columns={columns}
         data={filteredRecords}
         loading={loading}
+        onRowClick={(row) => { setSelectedRecord(row); setViewModalOpen(true); }}
         emptyMessage={loading ? 'Loading...' : `No ${selectedFuelType === 'All' ? 'fuel' : selectedFuelType.toLowerCase()} records found.`}
       />
+
+      <Modal 
+        isOpen={viewModalOpen} 
+        onClose={() => setViewModalOpen(false)} 
+        title="Fuel Transaction Details"
+      >
+        <RecordDetails data={selectedRecord} type="diesel" />
+        <div className="modal-footer" style={{ padding: '15px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', background: '#F8FAFC' }}>
+            <button className="secondary-btn" onClick={() => setViewModalOpen(false)}>Close</button>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={isModalOpen}

@@ -1,48 +1,40 @@
 const express = require('express');
 const router = express.Router();
-const Vehicle = require('../models/Vehicle');
+const ExtraIncome = require('../models/ExtraIncome');
 const { authMiddleware, authorizeRoles } = require('../middleware/authMiddleware');
 
-// Get all vehicles
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const vehicles = await Vehicle.find().sort({ number: 1 });
-    res.json(vehicles);
+    const records = await ExtraIncome.find().sort({ date: -1 });
+    res.json(records);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Add new vehicle
 router.post('/', authMiddleware, async (req, res) => {
-  const vehicle = new Vehicle(req.body);
+  const record = new ExtraIncome(req.body);
   try {
-    const newVehicle = await vehicle.save();
-    res.status(201).json(newVehicle);
+    const newRecord = await record.save();
+    res.status(201).json(newRecord);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// Update vehicle
 router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
-    const updatedVehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-    res.json(updatedVehicle);
+    const updatedRecord = await ExtraIncome.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(updatedRecord);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// Delete vehicle
 router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
-    await Vehicle.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Vehicle deleted' });
+    await ExtraIncome.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Record deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

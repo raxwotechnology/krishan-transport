@@ -7,6 +7,7 @@ import { generatePDFReport } from '../utils/reportGenerator';
 import { Download, Search } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
+import RecordDetails from './RecordDetails';
 
 const Clients = () => {
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -14,6 +15,8 @@ const Clients = () => {
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [viewModalOpen, setViewModalOpen] = React.useState(false);
+  const [selectedRecord, setSelectedRecord] = React.useState(null);
   const [clientRecords, setClientRecords] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -164,8 +167,20 @@ const Clients = () => {
         columns={columns} 
         data={filteredRecords} 
         loading={loading}
+        onRowClick={(row) => { setSelectedRecord(row); setViewModalOpen(true); }}
         emptyMessage={loading ? "Loading..." : "No client records found."} 
       />
+
+      <Modal 
+        isOpen={viewModalOpen} 
+        onClose={() => setViewModalOpen(false)} 
+        title="Client Profile Details"
+      >
+        <RecordDetails data={selectedRecord} type="client" />
+        <div className="modal-footer" style={{ padding: '15px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', background: '#F8FAFC' }}>
+            <button className="secondary-btn" onClick={() => setViewModalOpen(false)}>Close</button>
+        </div>
+      </Modal>
 
       <Modal 
         isOpen={isModalOpen} 

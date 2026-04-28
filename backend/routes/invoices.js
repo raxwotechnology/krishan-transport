@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const Invoice = require('../models/Invoice');
+const Counter = require('../models/Counter');
+
+async function getNextSequence(name) {
+  const counter = await Counter.findOneAndUpdate(
+    { id: name },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  return counter.seq;
+}
 
 // Get all invoices
 router.get('/', async (req, res) => {
@@ -16,14 +26,10 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     // Auto-generate invoice number if not provided
-    if (!req.body.invoiceNo) {
-      const lastInvoice = await Invoice.findOne().sort({ createdAt: -1 });
-      let nextNum = 1001;
-      if (lastInvoice && lastInvoice.invoiceNo && lastInvoice.invoiceNo.startsWith('KT-INV-')) {
-        const lastNum = parseInt(lastInvoice.invoiceNo.split('-')[2]);
-        if (!isNaN(lastNum)) nextNum = lastNum + 1;
-      }
-      req.body.invoiceNo = `KT-INV-${nextNum}`;
+    if (!req.body.invoiceNo || req.body.invoiceNo === '') {
+      const seq = await getNextSequence('invoiceNo');
+      const year = new Date().getFullYear().toString().slice(-2);
+      req.body.invoiceNo = `INV-${year}-${seq.toString().padStart(4, '0')}`;
     }
 
     const newInvoice = new Invoice(req.body);

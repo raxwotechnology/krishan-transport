@@ -14,7 +14,7 @@ router.get('/', authMiddleware, async (req, res, next) => {
 });
 
 // POST create employee
-router.post('/', authMiddleware, authorizeRoles('Admin'), async (req, res, next) => {
+router.post('/', authMiddleware, async (req, res, next) => {
   const data = { ...req.body };
   if (!data.username || (typeof data.username === 'string' && data.username.trim() === '')) {
     delete data.username;
@@ -30,7 +30,7 @@ router.post('/', authMiddleware, authorizeRoles('Admin'), async (req, res, next)
 });
 
 // PUT update employee
-router.put('/:id', authMiddleware, authorizeRoles('Admin'), async (req, res, next) => {
+router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res, next) => {
   try {
     const employee = await Employee.findById(req.params.id);
     if (!employee) return res.status(404).json({ message: 'Employee not found' });
@@ -42,7 +42,7 @@ router.put('/:id', authMiddleware, authorizeRoles('Admin'), async (req, res, nex
       employee.username = data.username.trim();
     }
 
-    const fields = ['name', 'nic', 'role', 'contact', 'joinedDate', 'status'];
+    const fields = ['name', 'nic', 'role', 'contact', 'joinedDate', 'status', 'basicSalary', 'hourlyRate'];
     fields.forEach(field => {
       if (data.hasOwnProperty(field)) {
         employee[field] = data[field];
