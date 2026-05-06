@@ -1,0 +1,9 @@
+@echo off
+echo Adding changes...
+git add .
+echo Committing changes...
+git commit -m "Update: Refined UI, mobile responsiveness, and financial modules"
+echo Pushing to raxwo...
+git push raxwo main
+echo Done!
+pause
