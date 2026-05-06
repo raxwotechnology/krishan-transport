@@ -178,6 +178,16 @@ const PaymentForm = ({ onSubmit, onCancel, initialData }) => {
       <div className="hire-form-scroll">
 
         {/* ── Section 1: Logistics ─────────────────────── */}
+        {form.isGrouped && (
+          <div className="form-section" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', marginBottom: '20px' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#1E40AF', fontWeight: 'bold' }}>
+              ℹ️ This is a CONSOLIDATED payment for multiple hires.
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#1E40AF' }}>
+              The Hire Amount and details below are aggregated from {form.vehicle?.split(',').length} vehicles.
+            </p>
+          </div>
+        )}
         <div className="form-section">
           <p className="form-section-title">Logistics Information</p>
           <div className="form-grid">
@@ -223,7 +233,82 @@ const PaymentForm = ({ onSubmit, onCancel, initialData }) => {
           </div>
         </div>
 
-        {/* ── Section 2: Time Tracking ─────────────────── */}
+        {/* ── Section 2: Itemized Breakdown (for Grouped Payments) ── */}
+        {form.items && form.items.length > 0 && (
+          <div className="form-section">
+            <p className="form-section-title">Itemized Breakdown</p>
+            <div className="table-responsive" style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                <thead style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>JOB / SITE</th>
+                    <th style={{ textAlign: 'center', padding: '10px' }}>HRS</th>
+                    <th style={{ textAlign: 'right', padding: '10px' }}>RATE</th>
+                    <th style={{ textAlign: 'right', padding: '10px' }}>TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#FFFFFF' : '#FAFBFC' }}>
+                      <td style={{ padding: '8px' }}>
+                        <input 
+                          type="text" 
+                          value={item.description || `${item.city || ''} ${item.address || ''}`.trim() || 'Service Item'} 
+                          onChange={(e) => {
+                            const newItems = [...form.items];
+                            newItems[idx].description = e.target.value;
+                            setForm({ ...form, items: newItems });
+                          }}
+                          style={{ width: '100%', padding: '4px', border: '1px solid transparent', borderRadius: '4px', fontSize: '11px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                        <input 
+                          type="number" 
+                          value={item.units || item.workingHours || 0} 
+                          onChange={(e) => {
+                            const newItems = [...form.items];
+                            const units = parseFloat(e.target.value) || 0;
+                            newItems[idx].units = units;
+                            newItems[idx].workingHours = units;
+                            newItems[idx].amount = (units * (newItems[idx].rate || 0));
+                            
+                            // Recalc total hire amount
+                            const newTotal = newItems.reduce((s, i) => s + (i.amount || 0), 0);
+                            setForm({ ...form, items: newItems, hireAmount: newTotal, balance: newTotal - (form.commission || 0) - (form.dayPayment || 0) - (form.takenAmount || 0) });
+                          }}
+                          style={{ width: '50px', textAlign: 'center', padding: '4px', border: '1px solid #CBD5E1', borderRadius: '4px', fontSize: '11px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'right' }}>
+                        <input 
+                          type="number" 
+                          value={item.rate || 0} 
+                          onChange={(e) => {
+                            const newItems = [...form.items];
+                            const rate = parseFloat(e.target.value) || 0;
+                            newItems[idx].rate = rate;
+                            newItems[idx].amount = ((newItems[idx].units || newItems[idx].workingHours || 0) * rate);
+                            
+                            // Recalc total hire amount
+                            const newTotal = newItems.reduce((s, i) => s + (i.amount || 0), 0);
+                            setForm({ ...form, items: newItems, hireAmount: newTotal, balance: newTotal - (form.commission || 0) - (form.dayPayment || 0) - (form.takenAmount || 0) });
+                          }}
+                          style={{ width: '70px', textAlign: 'right', padding: '4px', border: '1px solid #CBD5E1', borderRadius: '4px', fontSize: '11px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#1E40AF' }}>
+                        LKR {(item.amount || 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Section 3: Time Tracking ─────────────────── */}
         <div className="form-section">
           <p className="form-section-title">Time Tracking</p>
           <div className="form-grid">

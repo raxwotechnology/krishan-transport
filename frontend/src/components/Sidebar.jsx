@@ -14,12 +14,22 @@ import {
   FileCheck,
   Wallet,
   TrendingDown,
+  Wrench,
   X
 } from 'lucide-react';
 import './Sidebar.css';
 import logo from '../logo.png';
+import { useMonthFilter } from '../context/MonthFilterContext';
+import { Calendar } from 'lucide-react';
 
-const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen, onClose }) => {
+const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen, isCollapsed, onClose }) => {
+  const { 
+    selectedMonth, setSelectedMonth, 
+    selectedYear, setSelectedYear,
+    isFilterActive, setIsFilterActive,
+    months, years
+  } = useMonthFilter();
+
   const allMenuItems = [
     { id: 'dashboard',  label: 'Dashboard',        icon: LayoutDashboard },
     { id: 'hires',      label: 'Hire Book',         icon: Truck },
@@ -35,19 +45,21 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen
     { id: 'vehicles',   label: 'Vehicles',           icon: Car },
     { id: 'compliance', label: 'Compliance Book',    icon: FileCheck },
     { id: 'employees',  label: 'Employees',          icon: UserCircle },
+    { id: 'maintenance', label: 'Maintenance Book',   icon: Wrench },
+    { id: 'services',    label: 'Service Book',       icon: Wrench },
     { id: 'reports',    label: 'Financial Report',   icon: FileBarChart },
   ];
 
   const menuItems = allMenuItems.filter(item => {
     // Treat everyone EXCEPT Admin and Manager as restricted employees
     if (role !== 'Admin' && role !== 'Manager') {
-      return ['dashboard', 'hires', 'diesel', 'vehicles', 'compliance'].includes(item.id);
+      return ['dashboard', 'hires', 'diesel', 'vehicles', 'compliance', 'maintenance', 'services'].includes(item.id);
     }
     return true; // Manager and Admin see all
   });
 
   return (
-    <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+    <div className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-logo">
         <div className="logo-row">
           <img src={logo} alt="Krishan Transport Logo" className="app-logo" />
@@ -56,16 +68,53 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen
           </button>
         </div>
         <div className="logo-text">
-          <span className="logo-subtitle">MANAGEMENT SYSTEM</span>
+          {!isCollapsed && <span className="logo-subtitle">MANAGEMENT SYSTEM</span>}
         </div>
       </div>
       
       <div className="user-profile-simple">
         <div className="profile-initials">{(userName || role || 'U')[0].toUpperCase()}</div>
-        <div className="profile-info">
-          <p className="profile-name">{userName || 'User'}</p>
-          <p className="profile-role">{role || 'Role'}</p>
+        {!isCollapsed && (
+          <div className="profile-info">
+            <p className="profile-name">{userName || 'User'}</p>
+            <p className="profile-role">{role || 'Role'}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="month-filter-section">
+        <div className="filter-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={16} />
+            {!isCollapsed && <span>Monthly Reset</span>}
+          </div>
+          {!isCollapsed && (
+            <label className="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={isFilterActive} 
+                onChange={e => setIsFilterActive(e.target.checked)} 
+              />
+              <span className="slider round"></span>
+            </label>
+          )}
         </div>
+        {isFilterActive && !isCollapsed && (
+          <div className="filter-controls">
+            <select 
+              value={selectedMonth} 
+              onChange={e => setSelectedMonth(parseInt(e.target.value))}
+            >
+              {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            </select>
+            <select 
+              value={selectedYear} 
+              onChange={e => setSelectedYear(parseInt(e.target.value))}
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <nav className="sidebar-nav">
@@ -76,23 +125,26 @@ const Sidebar = ({ activeTab, setActiveTab, handleLogout, role, userName, isOpen
               key={item.id}
               className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
               onClick={() => setActiveTab(item.id)}
+              title={isCollapsed ? item.label : ''}
             >
               <Icon size={20} />
-              <span>{item.label}</span>
+              {!isCollapsed && <span>{item.label}</span>}
             </button>
           );
         })}
       </nav>
       
       <div className="sidebar-footer">
-        <button className="logout-btn" onClick={handleLogout}>
+        <button className="logout-btn" onClick={handleLogout} title={isCollapsed ? 'Logout' : ''}>
           <LogOut size={18} />
-          <span>Logout</span>
+          {!isCollapsed && <span>Logout</span>}
         </button>
-        <div className="status-indicator">
-          <span className="dot"></span>
-          <span>System Online</span>
-        </div>
+        {!isCollapsed && (
+          <div className="status-indicator">
+            <span className="dot"></span>
+            <span>System Online</span>
+          </div>
+        )}
       </div>
     </div>
   );

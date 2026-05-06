@@ -41,6 +41,9 @@ const HireSchema = new mongoose.Schema({
   externalCost:     { type: Number, default: 0 },
   vehicleType:      { type: String },
 
+  groupId:          { type: String },
+  isGrouped:        { type: Boolean, default: false },
+
   status: { type: String, enum: ['Pending', 'Completed', 'Paid'], default: 'Pending' }
 }, { timestamps: true });
 

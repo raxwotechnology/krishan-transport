@@ -70,6 +70,9 @@ app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/advances', require('./routes/advances'));
 app.use('/api/extra-income', require('./routes/extraIncome'));
 app.use('/api/expenses', require('./routes/expenses'));
+app.use('/api/maintenance', require('./routes/maintenance'));
+app.use('/api/daypayments', require('./routes/daypayments'));
+app.use('/api/services', require('./routes/services'));
 
 app.get('/', (req, res) => {
   res.send('Krishan Transport API is running...');

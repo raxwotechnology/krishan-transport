@@ -485,3 +485,64 @@
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
+
+.reminder-card-premium {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.reminder-card-premium:hover {
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.08);
+}
+
+/* ── Urgent Reminders Section ── */
+.reminders-columns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .reminders-columns-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* ── Dashboard Content ── */
+@media (max-width: 640px) {
+  .dashboard-container {
+    gap: 16px;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 1.5rem !important;
+    text-transform: none !important;
+    letter-spacing: -0.02em !important;
+    color: var(--text-900) !important;
+  }
+}
+
+.salary-scroll-container {
+  overflow-x: auto;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .activity-item {
+    padding: 10px;
+    gap: 10px;
+  }
+  
+  .activity-value {
+    font-size: 0.75rem;
+  }
+  
+  .stat-card {
+    padding: 16px;
+  }
+}

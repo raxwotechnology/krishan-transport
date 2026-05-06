@@ -34,28 +34,57 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Single Hire Fetch for Drill-down
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const record = await Hire.findById(req.params.id);
+    if (!record) return res.status(404).json({ message: 'Hire not found' });
+    res.json(record);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const dataArray = Array.isArray(req.body) ? req.body : [req.body];
+    let dataArray = [];
+    let common = {};
+    let groupBilling = false;
+
+    if (req.body.jobs && req.body.common) {
+      dataArray = req.body.jobs;
+      common = req.body.common;
+      groupBilling = common.groupBilling;
+    } else {
+      dataArray = Array.isArray(req.body) ? req.body : [req.body];
+      common = { date: dataArray[0].date, client: dataArray[0].client };
+    }
+
     const createdHires = [];
+    // Support adding to an existing group ("Add More" flow)
+    const existingGroupId = common.groupId || null;
+    const isAddingToExisting = !!existingGroupId;
+    const groupId = existingGroupId || (groupBilling ? `GRP-${Date.now()}` : null);
 
     for (const item of dataArray) {
+      const hireData = { ...common, ...item, groupId, isGrouped: groupBilling };
+      
       // 1. Auto-generate Bill Number if missing
-      if (!item.billNumber || item.billNumber === '' || item.billNumber === '—') {
+      if (!hireData.billNumber || hireData.billNumber === '' || hireData.billNumber === '—') {
         const seq = await getNextSequence('billNumber');
         const year = new Date().getFullYear().toString().slice(-2);
         const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
-        item.billNumber = `BL-${year}${month}-${seq.toString().padStart(4, '0')}`;
+        hireData.billNumber = `BL-${year}${month}-${seq.toString().padStart(4, '0')}`;
       }
 
       // 2. Create Hire Record
-      const hire = new Hire(item);
+      const hire = new Hire(hireData);
       const savedHire = await hire.save();
       createdHires.push(savedHire);
-      console.log(`[HIRE] Saved: ${savedHire._id}`);
 
-      // 4. Auto-generate Payment Record (Moved up for priority)
-      try {
+      // If NOT grouped, create separate Invoice/Payment/Expense
+      if (!groupBilling) {
+        // Individual Payment
         await mongoose.connection.collection('payments').insertOne({
           date: savedHire.date ? new Date(savedHire.date) : new Date(),
           client: savedHire.client,
@@ -64,13 +93,8 @@ router.post('/', authMiddleware, async (req, res) => {
           city: savedHire.city,
           driverName: savedHire.driverName,
           helperName: savedHire.helperName,
-          startTime: savedHire.startTime,
-          endTime: savedHire.endTime,
-          restTime: savedHire.restTime,
           totalHours: savedHire.workingHours,
           minimumHours: savedHire.minimumHours,
-          hoursInBill: savedHire.workingHours,
-          commission: savedHire.commission,
           hireAmount: savedHire.totalAmount,
           paidAmount: 0,
           balance: savedHire.totalAmount,
@@ -79,17 +103,11 @@ router.post('/', authMiddleware, async (req, res) => {
           createdAt: new Date(),
           updatedAt: new Date()
         });
-        console.log(`[PAYMENT] Created for Hire: ${savedHire._id}`);
-      } catch (payErr) {
-        console.error('[PAYMENT] Direct Insert Failed:', payErr.message);
-      }
 
-      // 3. Auto-generate Invoice
-      try {
+        // Individual Invoice
         const invSeq = await getNextSequence('invoiceNo');
         const invYear = new Date().getFullYear().toString().slice(-2);
         const invoiceNo = `INV-${invYear}-${invSeq.toString().padStart(4, '0')}`;
-
         const newInvoice = new Invoice({
           invoiceNo: invoiceNo,
           date: savedHire.date,
@@ -98,45 +116,175 @@ router.post('/', authMiddleware, async (req, res) => {
           vehicleNo: savedHire.vehicle,
           vehicleType: savedHire.vehicleType,
           jobDescription: savedHire.details || `Hire charges for ${savedHire.vehicle}`,
-          startTime: savedHire.startTime,
-          endTime: savedHire.endTime,
           totalUnits: savedHire.workingHours,
-          unitType: 'Hours',
           ratePerUnit: savedHire.oneHourFee,
           transportCharge: savedHire.transportFee,
           subtotal: savedHire.billAmount,
           totalAmount: savedHire.billAmount,
           status: 'Draft',
-          remarks: `Auto-generated from Hire Bill ${savedHire.billNumber}`,
-          hireId: savedHire._id
+          hireId: savedHire._id,
+          startTime: savedHire.startTime,
+          endTime: savedHire.endTime,
+          items: [{
+            description: `Hire charges for ${savedHire.vehicle} (${savedHire.startTime} - ${savedHire.endTime})`,
+            units: savedHire.workingHours,
+            unitType: 'Hours',
+            rate: savedHire.oneHourFee,
+            amount: savedHire.workingHours * savedHire.oneHourFee
+          }]
         });
         await newInvoice.save();
-        console.log(`[INVOICE] Created: ${invoiceNo}`);
-      } catch (invErr) {
-        console.error('[INVOICE] Failed to auto-generate:', invErr.message);
-      }
 
-      // 5. Auto-generate Expense for External Hires
-      if (savedHire.isExternal && Number(savedHire.externalCost) > 0) {
-        try {
+        // Individual Expense for External
+        if (savedHire.isExternal && Number(savedHire.externalCost) > 0) {
           await mongoose.connection.collection('expenses').insertOne({
             date: savedHire.date ? new Date(savedHire.date) : new Date(),
             description: `[EXT] Hire: ${savedHire.vehicle} - ${savedHire.client}`,
             amount: Number(savedHire.externalCost),
             category: 'Vehicle Hire',
-            note: `Auto-generated from Hire Bill ${savedHire.billNumber}. Category: ${savedHire.vehicleType || 'N/A'}`,
             hireId: savedHire._id,
             createdAt: new Date(),
             updatedAt: new Date()
           });
-          console.log(`[EXPENSE] Direct Created for Hire: ${savedHire._id}`);
-        } catch (expErr) {
-          console.error('[EXPENSE] Direct Create Failed:', expErr.message);
         }
       }
     }
 
-    res.status(201).json(Array.isArray(req.body) ? createdHires : createdHires[0]);
+    // If Grouped, create OR UPDATE consolidated Invoice and Payment
+    if (groupBilling && createdHires.length > 0) {
+      // Fetch ALL hires in this group (including pre-existing ones)
+      const allGroupHires = await Hire.find({ groupId });
+      const totalAmount     = allGroupHires.reduce((sum, h) => sum + h.totalAmount, 0);
+      const totalBillAmount = allGroupHires.reduce((sum, h) => sum + h.billAmount,  0);
+      const vehicles        = [...new Set(allGroupHires.map(h => h.vehicle))].join(', ');
+      const itemsList = allGroupHires.map(h => ({
+        description: `Hire: ${h.vehicle} (${h.startTime || '—'} - ${h.endTime || '—'})`,
+        units: h.workingHours || 0,
+        unitType: 'Hours',
+        rate: h.oneHourFee || 0,
+        amount: h.totalAmount || 0,
+        city: h.city,
+        address: h.address,
+        workingHours: h.workingHours,
+        startTime: h.startTime,
+        endTime: h.endTime,
+        vehicleType: h.vehicleType,
+        hireId: h._id
+      }));
+
+      if (isAddingToExisting) {
+        /* ── UPDATE existing payment & invoice ── */
+        const existingPayment = await mongoose.connection.collection('payments').findOne({ groupId });
+        if (existingPayment) {
+          const alreadyPaid = existingPayment.paidAmount || existingPayment.takenAmount || 0;
+          await mongoose.connection.collection('payments').updateOne(
+            { groupId },
+            { $set: {
+                vehicle: vehicles,
+                hireAmount: totalAmount,
+                balance: Math.max(0, totalAmount - alreadyPaid),
+                items: itemsList.map(i => ({ ...i, rate: i.rate, amount: i.amount })),
+                updatedAt: new Date()
+            }}
+          );
+        }
+        await Invoice.findOneAndUpdate(
+          { groupId },
+          { $set: {
+              vehicleNo: vehicles,
+              totalAmount: totalBillAmount,
+              subtotal: totalBillAmount,
+              items: itemsList,
+              startTime: allGroupHires.sort((a,b) => (a.startTime||'99:99').localeCompare(b.startTime||'99:99'))[0]?.startTime,
+              endTime:   allGroupHires.sort((a,b) => (b.endTime||'00:00').localeCompare(a.endTime||'00:00'))[0]?.endTime,
+              transportCharge: allGroupHires.reduce((s,h) => s + (h.transportFee||0), 0),
+              updatedAt: new Date()
+          }}
+        );
+        console.log(`[GROUP] Updated existing payment & invoice for group ${groupId} (${allGroupHires.length} hires total)`);
+      } else {
+      // Group Payment (new group only)
+      await mongoose.connection.collection('payments').insertOne({
+        date: new Date(common.date),
+        client: common.client,
+        vehicle: vehicles,
+        hireAmount: totalAmount,
+        paidAmount: 0,
+        balance: totalAmount,
+        status: 'Pending',
+        groupId: groupId,
+        isGrouped: true,
+        items: createdHires.map(h => ({
+          description: `Hire: ${h.vehicle} (${h.startTime} - ${h.endTime})`,
+          units: h.workingHours,
+          rate: h.oneHourFee,
+          amount: h.totalAmount,
+          city: h.city,
+          address: h.address,
+          workingHours: h.workingHours,
+          startTime: h.startTime,
+          endTime: h.endTime,
+          vehicleType: h.vehicleType,
+          hireId: h._id
+        })),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      // Group Invoice
+      const invSeq = await getNextSequence('invoiceNo');
+      const invYear = new Date().getFullYear().toString().slice(-2);
+      const invoiceNo = `INV-${invYear}-${invSeq.toString().padStart(4, '0')}`;
+      const newInvoice = new Invoice({
+        invoiceNo: invoiceNo,
+        date: new Date(common.date),
+        clientName: common.client,
+        vehicleNo: vehicles,
+        jobDescription: `Batch Hire: ${createdHires.length} vehicles`,
+        totalAmount: totalBillAmount,
+        subtotal: totalBillAmount,
+        status: 'Draft',
+        groupId: groupId,
+        isGrouped: true,
+        startTime: createdHires.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'))[0]?.startTime,
+        endTime: createdHires.sort((a, b) => (b.endTime || '00:00').localeCompare(a.endTime || '00:00'))[0]?.endTime,
+        items: createdHires.map(h => ({
+          description: `Hire: ${h.vehicle} (${h.startTime || '—'} - ${h.endTime || '—'})`,
+          units: h.workingHours || 0,
+          unitType: 'Hours',
+          rate: h.oneHourFee || 0,
+          amount: h.totalAmount || (h.workingHours * h.oneHourFee) || 0,
+          city: h.city,
+          address: h.address,
+          workingHours: h.workingHours,
+          startTime: h.startTime,
+          endTime: h.endTime,
+          vehicleType: h.vehicleType,
+          hireId: h._id
+        })),
+        transportCharge: createdHires.reduce((s, h) => s + (h.transportFee || 0), 0)
+      });
+      await newInvoice.save();
+
+      // Individual Expenses for External Hires still need to be created
+      for (const h of createdHires) {
+        if (h.isExternal && Number(h.externalCost) > 0) {
+          await mongoose.connection.collection('expenses').insertOne({
+            date: h.date ? new Date(h.date) : new Date(),
+            description: `[EXT] Hire: ${h.vehicle} - ${h.client}`,
+            amount: Number(h.externalCost),
+            category: 'Vehicle Hire',
+            hireId: h._id,
+            groupId: groupId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
+      } // end isAddingToExisting else
+    }
+
+    res.status(201).json(req.body.jobs ? createdHires : createdHires[0]);
   } catch (err) {
     console.error('[HIRE] Creation Flow Error:', err);
     res.status(400).json({ message: err.message });
@@ -147,8 +295,36 @@ router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (re
   try {
     const updated = await Hire.findByIdAndUpdate(req.params.id, req.body, { new: true });
     
-    // Sync with Payment Record
     if (updated) {
+      /* ── Status propagation ──────────────────────────── */
+      if (req.body.status) {
+        const hStatus  = req.body.status;
+        const payStatus = hStatus === 'Completed' || hStatus === 'Paid' ? 'Paid' : 'Pending';
+        const invStatus = hStatus === 'Completed' || hStatus === 'Paid' ? 'Paid' : 'Draft';
+        try {
+          if (updated.hireId || updated._id) {
+            await mongoose.connection.collection('payments').updateOne(
+              { hireId: updated._id },
+              { $set: { status: payStatus, updatedAt: new Date() } }
+            );
+            const Invoice = require('../models/Invoice');
+            await Invoice.findOneAndUpdate({ hireId: updated._id }, { status: invStatus });
+          }
+          if (updated.groupId) {
+            await mongoose.connection.collection('payments').updateOne(
+              { groupId: updated.groupId },
+              { $set: { status: payStatus, updatedAt: new Date() } }
+            );
+            const Invoice = require('../models/Invoice');
+            await Invoice.findOneAndUpdate({ groupId: updated.groupId }, { status: invStatus });
+          }
+          console.log(`[HIRE→SYNC] Status "${hStatus}" propagated`);
+        } catch (stErr) {
+          console.error('[HIRE→SYNC]', stErr.message);
+        }
+      }
+
+      // Sync with Payment Record
       try {
         await mongoose.connection.collection('payments').updateOne(
           { hireId: updated._id },
@@ -251,10 +427,23 @@ router.put('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (re
 
 router.delete('/:id', authMiddleware, authorizeRoles('Admin', 'Manager'), async (req, res) => {
   try {
-    await Hire.findByIdAndDelete(req.params.id);
-    await Payment.findOneAndDelete({ hireId: req.params.id });
-    await Expense.findOneAndDelete({ hireId: req.params.id });
-    await Invoice.findOneAndDelete({ hireId: req.params.id });
+    const { isGroup } = req.query;
+    const id = req.params.id;
+
+    if (isGroup === 'true') {
+      // id is groupId
+      await Hire.deleteMany({ groupId: id });
+      await Payment.deleteMany({ groupId: id });
+      await Invoice.deleteMany({ groupId: id });
+      // Expenses are linked by hireId, but also have groupId now
+      await Expense.deleteMany({ groupId: id });
+    } else {
+      // id is hireId
+      await Hire.findByIdAndDelete(id);
+      await Payment.findOneAndDelete({ hireId: id });
+      await Expense.findOneAndDelete({ hireId: id });
+      await Invoice.findOneAndDelete({ hireId: id });
+    }
     res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });

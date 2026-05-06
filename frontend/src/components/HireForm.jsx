@@ -43,6 +43,7 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
   const [commonData, setCommonData] = useState({
     date:            new Date().toISOString().split('T')[0],
     client:          '',
+    groupBilling:    true, // Default to true as per user request
   });
 
   // Array of jobs
@@ -53,6 +54,8 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
       setCommonData({
         date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         client: initialData.client || '',
+        groupBilling: initialData.groupBilling !== undefined ? initialData.groupBilling : true,
+        groupId: initialData.groupId || null,   // carry existing groupId for "Add More"
       });
       setJobs([{
         ...defaultJob(),
@@ -121,6 +124,11 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
          if (fleetVeh) {
            job.vehicleType = fleetVeh.type || '';
            job.isExternal = false;
+           // Use hourly rate from vehicle if available
+           if (fleetVeh.hourlyRate) {
+             job.oneHourFee = fleetVeh.hourlyRate;
+             job.extraHourFee = fleetVeh.hourlyRate;
+           }
          } else {
            job.isExternal = true;
          }
@@ -131,6 +139,11 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
         if (lastJob) {
           job.driverName = lastJob.driverName || '';
           if (!fleetVeh) job.vehicleType = lastJob.vehicleType || '';
+          // If no vehicle rate, fallback to last job rate
+          if (!fleetVeh?.hourlyRate) {
+            job.oneHourFee = lastJob.oneHourFee || 0;
+            job.extraHourFee = lastJob.extraHourFee || 0;
+          }
         }
       }
 
@@ -227,13 +240,13 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
       // We continue anyway, or we could show an error
     }
 
-    const finalData = jobs.map(job => ({
-      ...commonData,
-      ...job
-    }));
+    const finalData = {
+      jobs: jobs,
+      common: commonData
+    };
     
     if (initialData && initialData._id) {
-      onSubmit(finalData[0]);
+      onSubmit({ ...commonData, ...jobs[0] });
     } else {
       onSubmit(finalData);
     }
@@ -267,6 +280,18 @@ const HireForm = ({ onSubmit, onCancel, initialData }) => {
                 required
               />
             </div>
+          </div>
+          <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#475569', fontWeight: '600' }}>
+              <input 
+                type="checkbox" 
+                name="groupBilling" 
+                checked={commonData.groupBilling} 
+                onChange={(e) => setCommonData({...commonData, groupBilling: e.target.checked})} 
+                style={{ width: '18px', height: '18px' }}
+              />
+              Group these hires into ONE Invoice and ONE Payment record
+            </label>
           </div>
         </div>
 

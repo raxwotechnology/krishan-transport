@@ -18,37 +18,40 @@ const FinancialReport = () => {
   const [downloading, setDownloading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('All');
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
+  const [refreshing, setRefreshing] = useState(false);
   const reportRef = useRef(null);
 
-  useEffect(() => {
-    const fetchAll = async (isSilent = false) => {
-      if (!isSilent) setLoading(true);
-      try {
-        const [h, d, s, p, ei, ex, v] = await Promise.all([
-          hireAPI.get(),
-          dieselAPI.get(),
-          salaryAPI.get(),
-          paymentAPI.get(),
-          extraIncomeAPI.get(),
-          expenseAPI.get(),
-          vehicleAPI.get()
-        ]);
-        setData({
-          hires: h.data || [],
-          diesel: d.data || [],
-          salaries: s.data || [],
-          payments: p.data || [],
-          extraIncome: ei.data || [],
-          expenses: ex.data || [],
-          vehicles: v.data || []
-        });
-      } catch (err) {
-        console.error('Report fetch failed:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchAll = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const [h, d, s, p, ei, ex, v] = await Promise.all([
+        hireAPI.get(),
+        dieselAPI.get(),
+        salaryAPI.get(),
+        paymentAPI.get(),
+        extraIncomeAPI.get(),
+        expenseAPI.get(),
+        vehicleAPI.get()
+      ]);
+      setData({
+        hires: h.data || [],
+        diesel: d.data || [],
+        salaries: s.data || [],
+        payments: p.data || [],
+        extraIncome: ei.data || [],
+        expenses: ex.data || [],
+        vehicles: v.data || []
+      });
+    } catch (err) {
+      console.error('Report fetch failed:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAll();
     
     // Auto-refresh every 15 seconds silently
@@ -78,16 +81,11 @@ const FinancialReport = () => {
   };
 
   const filterSalaries = (records) => {
-    if (selectedMonth === 'All') {
-      return records.filter(r => {
-        const d = new Date(r.createdAt);
-        return d.getFullYear() === parseInt(selectedYear);
-      });
-    }
-    // SalaryBook uses a free-text month field like "April 2025"
-    return records.filter(r =>
-      r.month?.includes(selectedMonth) && r.month?.includes(selectedYear)
-    );
+    return records.filter(r => {
+      const period = r.month || ''; // e.g. "April 2025"
+      if (selectedMonth === 'All') return period.includes(selectedYear);
+      return period.includes(selectedMonth) && period.includes(selectedYear);
+    });
   };
 
   const stats = useMemo(() => {
@@ -98,42 +96,64 @@ const FinancialReport = () => {
     const fExtraIncome = filterByPeriod(data.extraIncome, 'date');
     const fExpenses    = filterByPeriod(data.expenses, 'date');
 
-    const totalHire        = fPayments.reduce((s, r) => s + (parseFloat(r.hireAmount) || 0), 0);
-    const totalDiesel      = fDiesel.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
-    const totalSalary      = fSalaries.reduce((s, r) => s + (parseFloat(r.netPay) || 0), 0);
-    const totalPayments    = fPayments.reduce((s, r) => s + (parseFloat(r.takenAmount) || 0), 0);
-    const totalExtraIncome = fExtraIncome.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-    const totalOtherExp    = fExpenses.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    const parseVal = (v) => typeof v === 'number' ? v : parseFloat(String(v || '0').replace(/[^0-9.-]+/g, "")) || 0;
+    
+    const getAccurateAmount = (r, amountField) => {
+      const items = r.items || r.originalHires || [];
+      if (items.length > 0) {
+        return items.reduce((s, i) => s + parseVal(i.totalAmount || i.amount || i.billAmount || 0), 0);
+      }
+      return parseVal(r[amountField] || 0);
+    };
 
-    // Leasing — only count months marked as PAID
+    const totalHire        = fPayments.reduce((s, r) => s + getAccurateAmount(r, 'hireAmount'), 0);
+    const totalDiesel      = fDiesel.reduce((s, r) => s + parseVal(r.total || r.amount), 0);
+    const totalSalary      = fSalaries.reduce((s, r) => s + parseVal(r.netPay), 0);
+    const totalPayments    = fPayments.reduce((s, r) => s + parseVal(r.takenAmount || r.paidAmount), 0);
+    const totalExtraIncome = fExtraIncome.reduce((s, r) => s + parseVal(r.amount), 0);
+    const totalOtherExp    = fExpenses.reduce((s, r) => s + parseVal(r.amount), 0);
+
+    // Leasing — count actual amount paid for months marked as PAID
     const totalLeasing = data.vehicles
-      .filter(v => v.hasLeasing && v.monthlyPremium)
+      .filter(v => v.hasLeasing)
       .reduce((s, v) => {
-        const premium = parseFloat(v.monthlyPremium) || 0;
         const payments = v.leasePayments || [];
         if (selectedMonth === 'All') {
-          const paidMonths = payments.filter(lp =>
-            lp.year === parseInt(selectedYear) && lp.paid
-          ).length;
-          return s + paidMonths * premium;
+          return s + payments
+            .filter(lp => lp.year === parseInt(selectedYear) && lp.paid)
+            .reduce((sum, lp) => sum + (parseFloat(lp.amountPaid) || 0), 0);
         } else {
           const monthIdx = MONTHS.indexOf(selectedMonth) + 1;
-          const entry = payments.find(lp =>
-            lp.year === parseInt(selectedYear) && lp.month === monthIdx && lp.paid
-          );
-          return s + (entry ? premium : 0);
+          const entry = payments.find(lp => lp.year === parseInt(selectedYear) && lp.month === monthIdx && lp.paid);
+          return s + (entry ? (parseFloat(entry.amountPaid) || 0) : 0);
         }
       }, 0);
 
+    // Speed Draft — count actual amount paid
+    const totalSpeedDraft = data.vehicles
+      .filter(v => v.hasSpeedDraft)
+      .reduce((s, v) => {
+        const payments = v.speedDraftPayments || [];
+        if (selectedMonth === 'All') {
+          return s + payments
+            .filter(sp => sp.year === parseInt(selectedYear) && sp.paid)
+            .reduce((sum, sp) => sum + (parseFloat(sp.amountPaid) || 0), 0);
+        } else {
+          const monthIdx = MONTHS.indexOf(selectedMonth) + 1;
+          const entry = payments.find(sp => sp.year === parseInt(selectedYear) && sp.month === monthIdx && sp.paid);
+          return s + (entry ? (parseFloat(entry.amountPaid) || 0) : 0);
+        }
+      }, 0);
 
     const totalIncome   = totalHire + totalExtraIncome;
-    const totalExpense  = totalDiesel + totalSalary + totalOtherExp + totalLeasing;
+    const totalExpense  = totalDiesel + totalSalary + totalOtherExp + totalLeasing + totalSpeedDraft;
     const netProfit     = totalIncome - totalExpense;
+    const cashBalance   = (totalPayments + totalExtraIncome) - totalExpense;
 
     return {
       fHires, fDiesel, fSalaries, fPayments, fExtraIncome, fExpenses,
-      totalHire, totalDiesel, totalSalary, totalPayments, totalExtraIncome, totalOtherExp, totalLeasing,
-      totalIncome, totalExpense, netProfit
+      totalHire, totalDiesel, totalSalary, totalPayments, totalExtraIncome, totalOtherExp, totalLeasing, totalSpeedDraft,
+      totalIncome, totalExpense, netProfit, cashBalance
     };
   }, [data, selectedMonth, selectedYear]);
 
@@ -215,8 +235,8 @@ const FinancialReport = () => {
         <div className="report-divider" />
 
         <button className="download-btn" onClick={() => fetchAll(false)} style={{ background: '#F8FAFC', color: '#64748B', border: '1px solid #E2E8F0', marginRight: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <RefreshCw size={16} className={loading ? 'spinner' : ''} />
-          {loading ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw size={16} className={refreshing ? 'spinner' : ''} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
 
         <button className="download-btn" onClick={handleDownload} disabled={downloading}>
@@ -258,6 +278,16 @@ const FinancialReport = () => {
         {/* ── KPI Cards ── */}
         <div className="report-kpi-grid">
           <div className="kpi-card" style={{ '--kpi-color': '#2563EB' }}>
+            <div className="kpi-label">Total Revenue</div>
+            <div className="kpi-value">LKR {stats.totalIncome.toLocaleString()}</div>
+            <div className="kpi-sub">Hire + Extra Income</div>
+          </div>
+          <div className="kpi-card" style={{ '--kpi-color': '#EF4444' }}>
+            <div className="kpi-label">Total Outgoings</div>
+            <div className="kpi-value">LKR {stats.totalExpense.toLocaleString()}</div>
+            <div className="kpi-sub">Salaries, Fuel, Lease/Speed Draft, Other</div>
+          </div>
+          <div className="kpi-card" style={{ '--kpi-color': '#F59E0B' }}>
             <div className="kpi-label">Hire Revenue</div>
             <div className="kpi-value">LKR {stats.totalHire.toLocaleString()}</div>
             <div className="kpi-sub">{stats.fHires.length} jobs completed</div>
@@ -265,17 +295,12 @@ const FinancialReport = () => {
           <div className="kpi-card" style={{ '--kpi-color': '#10B981' }}>
             <div className="kpi-label">Payments Received</div>
             <div className="kpi-value">LKR {stats.totalPayments.toLocaleString()}</div>
-            <div className="kpi-sub">{stats.fPayments.length} transactions</div>
+            <div className="kpi-sub">Cash actually collected</div>
           </div>
-          <div className="kpi-card" style={{ '--kpi-color': '#F59E0B' }}>
-            <div className="kpi-label">Salary Paid</div>
-            <div className="kpi-value">LKR {stats.totalSalary.toLocaleString()}</div>
-            <div className="kpi-sub">{stats.fSalaries.length} employees</div>
-          </div>
-          <div className="kpi-card" style={{ '--kpi-color': '#EF4444' }}>
-            <div className="kpi-label">Fuel Cost</div>
-            <div className="kpi-value">LKR {stats.totalDiesel.toLocaleString()}</div>
-            <div className="kpi-sub">{stats.fDiesel.length} fill-ups</div>
+          <div className="kpi-card" style={{ '--kpi-color': '#8B5CF6' }}>
+            <div className="kpi-label">Cash Balance</div>
+            <div className="kpi-value">LKR {stats.cashBalance.toLocaleString()}</div>
+            <div className="kpi-sub">Actual Cash in Hand</div>
           </div>
           <div className={`kpi-card ${stats.netProfit >= 0 ? 'kpi-profit' : 'kpi-loss'}`}
                style={{ '--kpi-color': stats.netProfit >= 0 ? '#10B981' : '#EF4444' }}>
@@ -284,6 +309,8 @@ const FinancialReport = () => {
             <div className="kpi-sub">Total Income − Total Expenses</div>
           </div>
         </div>
+
+
 
         {/* ── Income & Expense Breakdown ── */}
         <div className="report-section">
@@ -340,6 +367,13 @@ const FinancialReport = () => {
                 <td>{data.vehicles.filter(v => v.hasLeasing).length} units</td>
                 <td className="amount-cell amount-neg">− {stats.totalLeasing.toLocaleString()}</td>
                 <td>{stats.totalIncome > 0 ? ((stats.totalLeasing / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
+              </tr>
+              <tr>
+                <td><span className="cat-badge cat-expense">Speed Draft Payments</span></td>
+                <td>Expense</td>
+                <td>{data.vehicles.filter(v => v.hasSpeedDraft).length} units</td>
+                <td className="amount-cell amount-neg">− {stats.totalSpeedDraft.toLocaleString()}</td>
+                <td>{stats.totalIncome > 0 ? ((stats.totalSpeedDraft / stats.totalIncome) * 100).toFixed(1) + '%' : '—'}</td>
               </tr>
               <tr>
                 <td><span className="cat-badge cat-expense">Other Expenses</span></td>

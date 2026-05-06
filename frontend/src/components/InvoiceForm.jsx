@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { clientAPI, vehicleAPI } from '../services/api';
+import { clientAPI, vehicleAPI, hireAPI } from '../services/api';
 import Autocomplete from './Autocomplete';
 import '../styles/forms.css';
 
@@ -21,21 +21,31 @@ const defaultForm = () => ({
   status: 'Draft',
 });
 
-const calcTotal = (d) =>
-  +(
-    Number(d.totalUnits    || 0) * Number(d.ratePerUnit    || 0) +
+const calcTotal = (d) => {
+  const itemTotal = d.items?.length > 0 
+    ? d.items.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+    : Number(d.totalUnits || 0) * Number(d.ratePerUnit || 0);
+    
+  return +(
+    itemTotal +
     Number(d.transportCharge || 0) +
     Number(d.otherCharges    || 0)
   ).toFixed(2);
+};
 
-const calcSubtotal = (d) =>
-  +(Number(d.totalUnits || 0) * Number(d.ratePerUnit || 0)).toFixed(2);
+const calcSubtotal = (d) => {
+  if (d.items?.length > 0) {
+    return +(d.items.reduce((s, i) => s + (Number(i.amount) || 0), 0)).toFixed(2);
+  }
+  return +(Number(d.totalUnits || 0) * Number(d.ratePerUnit || 0)).toFixed(2);
+};
 
 /* ── Component ─────────────────────────────────────────────── */
 const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData,   setFormData]   = useState(defaultForm());
   const [clients,    setClients]    = useState([]);
   const [vehicles,   setVehicles]   = useState([]);
+  const [hireRecords, setHireRecords] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   /* Load dropdowns & pre-fill when editing */
@@ -56,12 +66,14 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
 
   const fetchLinkedData = async () => {
     try {
-      const [cRes, vRes] = await Promise.all([
+      const [cRes, vRes, hRes] = await Promise.all([
         clientAPI.get(),
         vehicleAPI.get(),
+        hireAPI.get()
       ]);
       setClients(Array.isArray(cRes.data) ? cRes.data : []);
       setVehicles(Array.isArray(vRes.data) ? vRes.data : []);
+      setHireRecords(Array.isArray(hRes.data) ? hRes.data : []);
     } catch (err) {
       console.error('Failed to fetch linked data', err);
     }
@@ -72,10 +84,27 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
     const { name, value } = e.target;
     const updated = { ...formData, [name]: value };
 
-    // Auto-fill type if selecting existing vehicle
-    if (name === 'vehicleNo') {
-      const vehicleObj = vehicles.find(v => v.number === value);
-      if (vehicleObj) updated.vehicleType = vehicleObj.type || '';
+    // Auto-fill logic from recent hires
+    if (name === 'clientName' && value && !initialData) {
+      const lastHire = hireRecords
+        .filter(h => (h.client || h.clientName) === value)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+      
+      if (lastHire) {
+        if (!updated.site) updated.site = lastHire.site || lastHire.address || '';
+        if (!updated.vehicleNo) updated.vehicleNo = lastHire.vehicle || '';
+        if (!updated.startTime) updated.startTime = lastHire.startTime || '';
+        if (!updated.endTime) updated.endTime = lastHire.endTime || '';
+        if (!updated.jobDescription) updated.jobDescription = lastHire.details || '';
+        if (!updated.unitType) updated.unitType = 'Hours';
+        if (!updated.totalUnits) updated.totalUnits = lastHire.workingHours || 0;
+        
+        // Auto-fill vehicle type if we just got a vehicleNo
+        if (updated.vehicleNo) {
+          const vObj = vehicles.find(v => v.number === updated.vehicleNo);
+          if (vObj) updated.vehicleType = vObj.type || '';
+        }
+      }
     }
 
     updated.totalAmount = calcTotal(updated);
@@ -197,7 +226,17 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
         {/* ── Section 2: Job Details ── */}
         <div className="form-section">
           <p className="form-section-title">Job Details</p>
-          <div className="form-group">
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label>Start Time</label>
+              <input type="time" name="startTime" value={formData.startTime || ''} onChange={handleChange} />
+            </div>
+            <div className="form-group">
+              <label>End Time</label>
+              <input type="time" name="endTime" value={formData.endTime || ''} onChange={handleChange} />
+            </div>
+          </div>
+          <div className="form-group" style={{ marginTop: '16px' }}>
             <label>Description</label>
             <textarea
               name="jobDescription" value={formData.jobDescription}
@@ -207,57 +246,124 @@ const InvoiceForm = ({ onSubmit, onCancel, initialData }) => {
           </div>
         </div>
 
-        {/* ── Section 3: Pricing Breakdown ── */}
+        {/* ── Section 3: Pricing & Itemization ── */}
         <div className="form-section">
-          <p className="form-section-title">Pricing Breakdown</p>
-          <div className="form-grid">
-
-            <div className="form-group">
-              <label>Unit Type</label>
-              <select name="unitType" value={formData.unitType} onChange={handleChange}>
-                <option value="Hours">Hours</option>
-                <option value="Days">Days</option>
-                <option value="Lumpsum">Lumpsum</option>
-                <option value="KM">KM</option>
-              </select>
+          <p className="form-section-title">Pricing & Itemization</p>
+          
+          {formData.items && formData.items.length > 0 ? (
+            <div className="itemized-editor" style={{ marginBottom: '20px' }}>
+              <p style={{ fontWeight: 'bold', fontSize: '12px', color: '#1E40AF', marginBottom: '8px' }}>Batch Items (Grouped Billing Active)</p>
+              <div className="table-responsive" style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                  <thead style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '10px' }}>JOB DESCRIPTION / SITE</th>
+                      <th style={{ textAlign: 'center', padding: '10px' }}>UNITS</th>
+                      <th style={{ textAlign: 'right', padding: '10px' }}>RATE</th>
+                      <th style={{ textAlign: 'right', padding: '10px' }}>TOTAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formData.items.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#FFFFFF' : '#FAFBFC' }}>
+                        <td style={{ padding: '8px' }}>
+                          <input 
+                            type="text" 
+                            className="inline-input"
+                            value={item.description || `${item.city || ''} ${item.address || ''}`.trim() || 'Service Item'} 
+                            onChange={(e) => {
+                              const newItems = [...formData.items];
+                              newItems[idx].description = e.target.value;
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            style={{ width: '100%', padding: '4px', border: '1px solid transparent', borderRadius: '4px', fontSize: '11px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>
+                          <input 
+                            type="number" 
+                            className="inline-input"
+                            value={item.units || item.workingHours || 0} 
+                            onChange={(e) => {
+                              const newItems = [...formData.items];
+                              newItems[idx].units = parseFloat(e.target.value) || 0;
+                              newItems[idx].amount = (newItems[idx].units * (newItems[idx].rate || 0));
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            style={{ width: '50px', textAlign: 'center', padding: '4px', border: '1px solid #CBD5E1', borderRadius: '4px', fontSize: '11px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right' }}>
+                          <input 
+                            type="number" 
+                            className="inline-input"
+                            value={item.rate || 0} 
+                            onChange={(e) => {
+                              const newItems = [...formData.items];
+                              newItems[idx].rate = parseFloat(e.target.value) || 0;
+                              newItems[idx].amount = ((newItems[idx].units || 0) * newItems[idx].rate);
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            style={{ width: '80px', textAlign: 'right', padding: '4px', border: '1px solid #CBD5E1', borderRadius: '4px', fontSize: '11px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#1E40AF' }}>
+                          LKR {(item.amount || 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          ) : (
+            <div className="form-grid-2" style={{ marginBottom: '16px' }}>
+              <div className="form-group">
+                <label>Unit Type</label>
+                <select name="unitType" value={formData.unitType} onChange={handleChange}>
+                  <option value="Hours">Hours</option>
+                  <option value="Days">Days</option>
+                  <option value="Lumpsum">Lumpsum</option>
+                  <option value="KM">KM</option>
+                </select>
+              </div>
 
-            <div className="form-group">
-              <label>Total Units</label>
-              <input
-                type="number" name="totalUnits"
-                value={formData.totalUnits} onChange={handleChange}
-                min="0" step="0.01"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Rate / Unit (LKR)</label>
-              <input
-                type="number" name="ratePerUnit"
-                value={formData.ratePerUnit} onChange={handleChange}
-                min="0"
-              />
-            </div>
-
-          </div>
-
-          {/* Live subtotal hint */}
-          {subtotal > 0 && (
-            <div style={{
-              margin: '10px 0 4px',
-              padding: '8px 12px',
-              background: '#EFF6FF',
-              borderRadius: '8px',
-              fontSize: '13px',
-              color: '#1D4ED8',
-              display: 'flex',
-              justifyContent: 'space-between',
-            }}>
-              <span>Units Subtotal ({formData.totalUnits} × LKR {Number(formData.ratePerUnit).toLocaleString()})</span>
-              <strong>LKR {subtotal.toLocaleString()}</strong>
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label>Total Units ({formData.unitType})</label>
+                  <input
+                    type="number" name="totalUnits"
+                    value={formData.totalUnits} onChange={handleChange}
+                    min="0" step="0.1"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Rate per Unit (LKR)</label>
+                  <input
+                    type="number" name="ratePerUnit"
+                    value={formData.ratePerUnit} onChange={handleChange}
+                    min="0"
+                  />
+                </div>
+              </div>
             </div>
           )}
+
+          <div style={{
+            margin: '10px 0 4px',
+            padding: '12px',
+            background: '#EFF6FF',
+            borderRadius: '12px',
+            fontSize: '14px',
+            color: '#1D4ED8',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            border: '1px solid #DBEAFE'
+          }}>
+            <span style={{ fontWeight: 500, color: '#60A5FA', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '0.05em' }}>Subtotal (Excl. Add-ons)</span>
+            <strong style={{ fontSize: '16px' }}>LKR {subtotal.toLocaleString()}</strong>
+          </div>
 
           <div className="form-grid" style={{ marginTop: '12px' }}>
 

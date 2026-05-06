@@ -29,7 +29,22 @@ const PaymentSchema = new mongoose.Schema({
   paidAmount:     { type: Number, default: 0 },
   balance:        { type: Number, default: 0 },
   status:         { type: String, enum: ['Pending', 'Paid', 'Partial'], default: 'Pending' },
-  hireId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' }
+  hireId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' },
+  groupId:        { type: String },
+  isGrouped:      { type: Boolean, default: false },
+  items: [{
+    description: { type: String },
+    units: { type: Number },
+    rate: { type: Number },
+    amount: { type: Number },
+    city: { type: String },
+    address: { type: String },
+    workingHours: { type: Number },
+    startTime: { type: String },
+    endTime: { type: String },
+    vehicleType: { type: String },
+    hireId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' }
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Payment', PaymentSchema);

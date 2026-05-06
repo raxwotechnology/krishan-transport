@@ -9,6 +9,7 @@ import '../styles/forms.css';
 import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
 import RecordDetails from './RecordDetails';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
 
 const FUEL_TYPES = ['All', 'Diesel', 'Petrol'];
 
@@ -16,6 +17,7 @@ const DieselBook = () => {
   const userRole = localStorage.getItem('kt_user_role');
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [viewModalOpen, setViewModalOpen] = React.useState(false);
@@ -35,7 +37,7 @@ const DieselBook = () => {
   React.useEffect(() => {
     fetchRecords();
     fetchVehicles();
-  }, []);
+  }, [selectedMonth, selectedYear, isFilterActive]);
 
   const fetchVehicles = async () => {
     try {
@@ -48,7 +50,10 @@ const DieselBook = () => {
     setLoading(true);
     try {
       const response = await dieselAPI.get();
-      const rawData = Array.isArray(response.data) ? response.data : [];
+      let rawData = Array.isArray(response.data) ? response.data : [];
+
+      // Global Month Filter
+      rawData = filterByMonth(rawData, 'date', selectedMonth, selectedYear, isFilterActive);
 
       const formatted = rawData.map(item => ({
         ...item,

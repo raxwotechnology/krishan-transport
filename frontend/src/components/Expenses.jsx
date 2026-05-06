@@ -5,9 +5,10 @@ import { expenseAPI } from '../services/api';
 import { Download, Search, RefreshCw, PlusCircle, TrendingDown } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
 
 const ExpenseForm = ({ onSubmit, onCancel, initialData }) => {
-  const [formData, setFormData] = React.useState(initialData || { date: new Date().toISOString().split('T')[0], description: '', amount: '', category: '', note: '' });
+  const [formData, setFormData] = React.useState(initialData || { date: new Date().toISOString().split('T')[0], description: '', amount: '', category: '', vehicleNumber: '', note: '' });
 
   React.useEffect(() => {
     if (initialData) {
@@ -40,6 +41,10 @@ const ExpenseForm = ({ onSubmit, onCancel, initialData }) => {
               <label>Category</label>
               <input type="text" placeholder="e.g. Maintenance, Utilities" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
             </div>
+            <div className="form-group">
+              <label>Vehicle Number (Optional)</label>
+              <input type="text" placeholder="e.g. WP-ABC-1234" value={formData.vehicleNumber} onChange={e => setFormData({...formData, vehicleNumber: e.target.value})} />
+            </div>
           </div>
           <div className="form-group" style={{ marginTop: '16px' }}>
             <label>Notes</label>
@@ -65,6 +70,7 @@ const ExpenseForm = ({ onSubmit, onCancel, initialData }) => {
 const Expenses = () => {
   const userRole = localStorage.getItem('kt_user_role');
   const canManage = ['Admin', 'Manager'].includes(userRole);
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [records, setRecords] = React.useState([]);
@@ -74,16 +80,20 @@ const Expenses = () => {
   const [successMsg, setSuccessMsg] = React.useState('');
 
   const columns = canManage 
-    ? ['DATE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)', 'ACTION']
-    : ['DATE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)'];
+    ? ['DATE', 'VEHICLE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)', 'ACTION']
+    : ['DATE', 'VEHICLE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)'];
 
-  React.useEffect(() => { fetchRecords(); }, []);
+  React.useEffect(() => { fetchRecords(); }, [selectedMonth, selectedYear, isFilterActive]);
 
   const fetchRecords = async () => {
     setLoading(true);
     try {
       const res = await expenseAPI.get();
-      const raw = Array.isArray(res.data) ? res.data : [];
+      let raw = Array.isArray(res.data) ? res.data : [];
+
+      // Global Month Filter
+      raw = filterByMonth(raw, 'date', selectedMonth, selectedYear, isFilterActive);
+
       const formatted = raw.map(r => ({
         ...r,
         rawData: r,
@@ -109,6 +119,7 @@ const Expenses = () => {
     return records.filter(r => {
       return !searchQuery || 
         (r.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (r.vehicleNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (r.category || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
   }, [records, searchQuery]);
@@ -191,6 +202,7 @@ const Expenses = () => {
         data={filteredRecords.map(r => ({
           ...r,
           DATE: r.date_disp,
+          vehicleNo: r.vehicleNumber || '—',
           DESCRIPTION: r.description,
           CATEGORY: r.category || '—',
           'AMOUNT (LKR)': r.amount_disp,

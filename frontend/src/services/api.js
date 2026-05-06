@@ -127,10 +127,11 @@ export const salaryAPI     = wrapAPI('/salaries',   'kt_salaries');
 export const paymentAPI    = wrapAPI('/payments',   'kt_payments');
 export const clientAPI     = wrapAPI('/clients',    'kt_clients');
 export const vehicleAPI    = wrapAPI('/vehicles',   'kt_vehicles');
-export const markLeasePayment = async (vehicleId, year, month, paid) => {
+export const dayPaymentAPI = wrapAPI('/daypayments','kt_daypayments');
+export const markLeasePayment = async (vehicleId, year, month, paid, amountPaid, paidDate) => {
   const res = await api.patch(
     `/vehicles/${vehicleId}/lease-payment`,
-    { year, month, paid }
+    { year, month, paid, amountPaid, paidDate }
   );
   // Update the kt_vehicles localStorage cache so Dashboard picks up the change instantly
   const cached = JSON.parse(localStorage.getItem('kt_vehicles') || '[]');
@@ -142,6 +143,28 @@ export const markLeasePayment = async (vehicleId, year, month, paid) => {
   window.dispatchEvent(new Event('kt_lease_updated'));
   return res;
 };
+
+export const markSpeedDraftPayment = async (vehicleId, year, month, paid, amountPaid, paidDate) => {
+  const res = await api.patch(
+    `/vehicles/${vehicleId}/speed-draft-payment`,
+    { year, month, paid, amountPaid, paidDate }
+  );
+  const cached = JSON.parse(localStorage.getItem('kt_vehicles') || '[]');
+  const updated = cached.map(v =>
+    v._id === vehicleId ? res.data : v
+  );
+  localStorage.setItem('kt_vehicles', JSON.stringify(updated));
+  window.dispatchEvent(new Event('kt_lease_updated'));
+  return res;
+};
+export const renewVehicleDocument = async (vehicleId, type, newExpirationDate, cost) => {
+  const res = await api.patch(`/vehicles/${vehicleId}/renew`, { type, newExpirationDate, cost });
+  // Update local cache
+  const cached = JSON.parse(localStorage.getItem('kt_vehicles') || '[]');
+  const updated = cached.map(v => v._id === vehicleId ? res.data.vehicle : v);
+  localStorage.setItem('kt_vehicles', JSON.stringify(updated));
+  return res;
+};
 export const employeeAPI   = wrapAPI('/employees',  'kt_employees');
 export const invoiceAPI    = wrapAPI('/invoices',   'kt_invoices');
 export const quotationAPI  = wrapAPI('/quotations', 'kt_quotations');
@@ -149,6 +172,8 @@ export const attendanceAPI = wrapAPI('/attendance', 'kt_attendance');
 export const advanceAPI    = wrapAPI('/advances',   'kt_advances');
 export const extraIncomeAPI = wrapAPI('/extra-income', 'kt_extra_income');
 export const expenseAPI     = wrapAPI('/expenses', 'kt_expenses');
+export const maintenanceAPI = wrapAPI('/maintenance', 'kt_maintenance');
+export const serviceAPI     = wrapAPI('/services',    'kt_services');
 
 export default api;
 

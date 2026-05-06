@@ -165,33 +165,76 @@ export const generateInvoicePDF = async (invoice) => {
     doc.setFont('helvetica', 'normal');
     if (invoice.site) doc.text(`Site: ${invoice.site}`, pageWidth - 95, 100);
     doc.text(`Vehicle: ${invoice.vehicleNo || 'N/A'}`, pageWidth - 95, 105);
+    if (invoice.startTime || invoice.endTime) {
+      doc.text(`Time: ${invoice.startTime || '—'} to ${invoice.endTime || '—'}`, pageWidth - 95, 110);
+    }
 
-    // Table
-    const tableData = [
-      ['Service Description', invoice.jobDescription || 'Professional Transport Services'],
-      ['Job Duration', `${invoice.startTime || '—'} to ${invoice.endTime || '—'}`],
-      ['Total Billed Units', `${invoice.totalUnits || 0} ${invoice.unitType || 'Hours'}`],
-      ['Rate per Unit', `LKR ${(invoice.ratePerUnit || 0).toLocaleString()}`],
-      ['Transport Charge', `LKR ${(invoice.transportCharge || 0).toLocaleString()}`]
-    ];
+    // Table - Dynamic based on items or single entry
+    let tableData = [];
+    if (invoice.items && invoice.items.length > 0) {
+      tableData = invoice.items.map(item => {
+        // Extract vehicle info
+        let vName = item.vehicle || item.vehicleNo;
+        if (!vName && item.description && item.description.includes('Hire:')) {
+          vName = item.description.split('Hire: ')[1]?.split(' ')[0];
+        }
+        const vehicleInfo = `${vName || 'Service Entry'}\n${item.vehicleType || item.description || ''}`.trim();
+        
+        // Extract time and site info
+        const timeStr = `${item.startTime || '—'} to ${item.endTime || '—'} ${item.workingHours ? `(${item.workingHours}h)` : ''}`;
+        const siteInfo = `Location: ${item.city || item.address || 'Main Site'}\nTime: ${timeStr}`;
+        
+        // Amount
+        const amount = `LKR ${(item.amount || item.totalAmount || 0).toLocaleString()}`;
+        
+        return [vehicleInfo, siteInfo, amount];
+      });
+    } else if (invoice.isGrouped === true || invoice.isGrouped === 'true' || (invoice.groupId && (!invoice.items || invoice.items.length === 0))) {
+      const uniqueVehicles = [...new Set((invoice.vehicleNo || '').split(',').map(v => v.trim()))].join(', ');
+      tableData = [
+        ['Consolidated Service Description', invoice.jobDescription || 'Batch Hire / Grouped Services'],
+        ['Total Service Amount', `LKR ${(invoice.subtotal || invoice.totalAmount || 0).toLocaleString()}`],
+        ['Vehicles', uniqueVehicles || 'Multiple']
+      ];
+    } else {
+      tableData = [
+        ['Service Description', invoice.jobDescription || 'Professional Transport Services'],
+        ['Job Duration', `${invoice.startTime || '—'} to ${invoice.endTime || '—'}`],
+        ['Total Billed Units', `${invoice.totalUnits || 0} ${invoice.unitType || 'Hours'}`],
+        ['Rate per Unit', `LKR ${(invoice.ratePerUnit || 0).toLocaleString()}`],
+        ['Transport Charge', `LKR ${(invoice.transportCharge || 0).toLocaleString()}`]
+      ];
+    }
 
     autoTable(doc, {
       startY: 120,
-      head: [['BILLING ITEM', 'DESCRIPTION / VALUE']],
+      head: invoice.items?.length > 0 
+        ? [['VEHICLE / DESCRIPTION', 'SITE / TIME DETAILS', 'AMOUNT']] 
+        : [['BILLING ITEM', 'DESCRIPTION / VALUE']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: THEME.primary, fontSize: 10 },
-      columnStyles: { 0: { fontStyle: 'bold', width: 60 } }
+      columnStyles: invoice.items?.length > 0 
+        ? { 0: { fontStyle: 'bold', cellWidth: 60 }, 1: { cellWidth: 80 }, 2: { halign: 'right', fontStyle: 'bold' } }
+        : { 0: { fontStyle: 'bold', cellWidth: 60 } }
     });
 
     let currentY = safeGetY(doc, 160);
 
     // Financial Summary Table
+    const subtotalService = invoice.items?.length > 0 
+      ? invoice.items.reduce((s, i) => s + (i.amount || i.totalAmount || i.billAmount || 0), 0)
+      : (invoice.totalUnits > 0 && invoice.ratePerUnit > 0)
+        ? (invoice.totalUnits * invoice.ratePerUnit)
+        : (invoice.subtotal || ((invoice.totalAmount || invoice.billAmount || invoice.hireAmount || 0) - (invoice.transportCharge || 0) - (invoice.otherCharges || 0)));
+
+    const finalGrandTotal = invoice.totalAmount || invoice.billAmount || invoice.hireAmount || subtotalService + (invoice.transportCharge || 0) + (invoice.otherCharges || 0);
+
     const summaryData = [
-      ['Subtotal Service', `LKR ${((invoice.totalUnits || 0) * (invoice.ratePerUnit || 0)).toLocaleString()}`],
-      ['Transport Charges', `LKR ${invoice.transportCharge?.toLocaleString() || '0'}`],
-      ['Other Charges', `LKR ${invoice.otherCharges?.toLocaleString() || '0'}`],
-      ['GRAND TOTAL', `LKR ${invoice.totalAmount?.toLocaleString()}`]
+      ['Subtotal Service', `LKR ${subtotalService.toLocaleString()}`],
+      ['Transport Charges', `LKR ${(invoice.transportCharge || 0).toLocaleString()}`],
+      ['Other Charges', `LKR ${(invoice.otherCharges || 0).toLocaleString()}`],
+      ['GRAND TOTAL', `LKR ${finalGrandTotal.toLocaleString()}`]
     ];
 
     autoTable(doc, {

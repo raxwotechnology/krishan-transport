@@ -9,12 +9,16 @@ import { generateInvoicePDF } from '../utils/billingGenerator';
 import { generatePDFReport } from '../utils/reportGenerator';
 import '../styles/forms.css';
 import '../styles/books.css';
+import VehicleFilter from './VehicleFilter';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
+import { vehicleAPI } from '../services/api';
 
 const InvoiceBook = () => {
   const [invoices, setInvoices] = useState([]);
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const userRole = localStorage.getItem('kt_user_role');
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
   
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,37 +27,90 @@ const InvoiceBook = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
+
   useEffect(() => { 
     fetchInvoices(); 
-  }, []);
+    fetchVehicles();
+  }, [selectedMonth, selectedYear, isFilterActive]);
+
+  const fetchVehicles = async () => {
+    try {
+      const res = await vehicleAPI.get();
+      setVehicles(Array.isArray(res.data) ? res.data : []);
+    } catch (e) { console.error(e); }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
     try {
       const res = await api.get('/invoices');
-      const raw = Array.isArray(res.data) ? res.data : [];
-      setInvoices(raw.map(inv => ({
-        ...inv,
-        rawData: inv, // Store original for Editing
-        vehicleType: inv.vehicleType || '—',
-        totalAmount_disp: `LKR ${(inv.totalAmount || 0).toLocaleString()}`,
-        status_disp: (
+      let raw = Array.isArray(res.data) ? res.data : [];
+
+      // Global Month Filter
+      raw = filterByMonth(raw, 'date', selectedMonth, selectedYear, isFilterActive);
+
+      setInvoices(raw.map(inv => {
+        const calculatedTotal = (inv.totalAmount > 0) 
+          ? inv.totalAmount 
+          : (inv.items?.reduce((s, i) => s + (i.amount || 0), 0) || 0);
+
+        return {
+          ...inv,
+          rawData: inv, // Store original for Editing
+          vehicleType: inv.vehicleType || '—',
+          totalAmount_disp: `LKR ${calculatedTotal.toLocaleString()}`,
+          status_disp: (
           <span className={`status-badge ${inv.status === 'Paid' ? 'status-active' : inv.status === 'Cancelled' ? 'status-inactive' : inv.status === 'Sent' ? 'status-pending' : ''}`}>
             {inv.status || 'Draft'}
           </span>
         ),
+        // Aggregate site/times for grouped invoices
+        site: inv.isGrouped && inv.items?.length > 0
+          ? [...new Set(inv.items.map(i => i.city || i.address || '').filter(Boolean))].join(', ') || inv.site || 'Multiple'
+          : inv.site,
+        startTime: inv.startTime || (inv.isGrouped && inv.items?.length > 0 ? inv.items.sort((a,b) => (a.startTime||'99:99').localeCompare(b.startTime||'99:99'))[0]?.startTime : '—'),
+        endTime: inv.endTime || (inv.isGrouped && inv.items?.length > 0 ? inv.items.sort((a,b) => (b.endTime||'00:00').localeCompare(a.endTime||'00:00'))[0]?.endTime : '—'),
         action: (
           <div className="table-actions" onClick={e => e.stopPropagation()}>
-            <button className="edit-btn" style={{ background: '#ec4899', color:'white' }} onClick={() => generateInvoicePDF(inv)} title="Download PDF">
+            {inv.isGrouped && (
+              <span style={{ fontSize: '10px', color: '#1e293b', fontWeight: 'bold', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>GROUPED</span>
+            )}
+            <button className="edit-btn" style={{ background: '#ec4899', color:'white' }} onClick={(e) => { e.stopPropagation(); handleDownloadPDF(inv); }} title="Download PDF">
                <FileDown size={14} /> PDF
             </button>
             {canManage && <button className="edit-btn" onClick={() => handleEdit(inv)}>Edit</button>}
             {canManage && <button className="delete-btn" onClick={() => handleDelete(inv._id)}>Delete</button>}
           </div>
         )
-      })));
+      };
+    }));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const handleDownloadPDF = async (inv) => {
+    // If it's a grouped invoice missing items, auto-recover them before PDF generation
+    if ((inv.isGrouped === true || inv.isGrouped === 'true' || inv.groupId) && (!inv.items || inv.items.length === 0)) {
+      try {
+        const res = await api.get('/hires');
+        const allHires = Array.isArray(res.data) ? res.data : [];
+        let matches = [];
+        if (inv.groupId) {
+          matches = allHires.filter(h => h.groupId === inv.groupId);
+        } else if (inv.invoiceNo) {
+          matches = allHires.filter(h => h.billNumber === inv.invoiceNo);
+        }
+        if (matches.length > 0) {
+          generateInvoicePDF({ ...inv, items: matches });
+          return;
+        }
+      } catch (err) {
+        console.error("PDF auto-recovery failed", err);
+      }
+    }
+    generateInvoicePDF(inv);
   };
 
   const calcTotal = (d) => 
@@ -116,11 +173,18 @@ const InvoiceBook = () => {
     });
   };
 
-  const filtered = invoices.filter(inv =>
-    (inv.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (inv.invoiceNo  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (inv.site       || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = invoices.filter(inv => {
+    const matchV = !selectedVehicle || 
+      (inv.vehicleNo?.includes(',') 
+        ? inv.vehicleNo.split(',').map(v => v.trim()).includes(selectedVehicle)
+        : inv.vehicleNo === selectedVehicle);
+    
+    const matchS = (inv.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (inv.invoiceNo  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (inv.site       || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchV && matchS;
+  });
 
   const stats = {
     total: invoices.length,
@@ -145,6 +209,8 @@ const InvoiceBook = () => {
           <h3 style={{ color: '#2563EB' }}>LKR {stats.totalRevenue.toLocaleString()}</h3>
         </div>
       </div>
+
+      <VehicleFilter vehicles={vehicles} selectedVehicle={selectedVehicle} onSelect={setSelectedVehicle} />
 
       <div className="book-filters">
         <div className="search-box">
@@ -191,8 +257,14 @@ const InvoiceBook = () => {
       </Modal>
 
       {/* Details Modal */}
-      <Modal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} title="Invoice Details">
-        {selectedRecord && <RecordDetails data={selectedRecord} type="invoice" />}
+      <Modal isOpen={isDetailsOpen} onClose={() => setIsDetailsOpen(false)} title="Invoice Details" wide>
+        {selectedRecord && (
+          <RecordDetails
+            data={selectedRecord}
+            type="invoice"
+            onStatusChange={() => fetchInvoices()}
+          />
+        )}
       </Modal>
 
     </div>

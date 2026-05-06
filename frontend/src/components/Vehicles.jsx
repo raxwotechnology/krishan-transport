@@ -10,7 +10,7 @@ import RecordDetails from './RecordDetails';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const LeasingBook = ({ vehicles, onPaymentToggle }) => {
+const LeasingBook = ({ vehicles }) => {
   const now = new Date();
   const [selYear, setSelYear] = React.useState(now.getFullYear());
   const leasingVehicles = vehicles.filter(v => v.rawData?.hasLeasing);
@@ -75,8 +75,8 @@ const LeasingBook = ({ vehicles, onPaymentToggle }) => {
                 const isPaid = entry?.paid || false;
                 const isFuture = selYear === now.getFullYear() && month > now.getMonth() + 1;
                 return (
-                  <button key={month} disabled={isFuture}
-                    onClick={() => onPaymentToggle(rd._id, selYear, month, !isPaid)}
+                  <button key={month} disabled={true}
+                    title={isPaid ? 'Paid' : isFuture ? 'Future month' : 'Unpaid'}
                     style={{
                       padding: '10px 6px', borderRadius: '10px', border: 'none', cursor: isFuture ? 'default' : 'pointer',
                       background: isFuture ? '#F8FAFC' : isPaid ? '#D1FAE5' : '#FEF2F2',
@@ -105,9 +105,9 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
 
   React.useEffect(() => {
     if (initialData) {
-      setFormData({ fuelType: 'Diesel', ...initialData });
+      setFormData({ fuelType: 'Diesel', hourlyRate: 0, ...initialData });
     } else {
-      setFormData({ number: '', model: '', type: '', fuelType: 'Diesel', status: 'Active' });
+      setFormData({ number: '', model: '', type: '', fuelType: 'Diesel', status: 'Active', hourlyRate: 0 });
     }
   }, [initialData]);
 
@@ -195,6 +195,15 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
               </select>
             </div>
           </div>
+          <div className="form-group" style={{ marginTop: '16px' }}>
+            <label>One Hour Rate (LKR)</label>
+            <input
+              type="number"
+              placeholder="0.00"
+              value={formData.hourlyRate || ''}
+              onChange={e => setFormData({ ...formData, hourlyRate: e.target.value })}
+            />
+          </div>
         </div>
 
         <div className="form-section">
@@ -241,11 +250,82 @@ const VehicleForm = ({ onSubmit, onCancel, initialData }) => {
                 />
               </div>
               <div className="form-group">
+                <label>Lease Start Date</label>
+                <input
+                  type="date"
+                  value={formData.leaseStartDate ? formData.leaseStartDate.split('T')[0] : ''}
+                  onChange={e => setFormData({ ...formData, leaseStartDate: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
                 <label>Final Premium Date</label>
                 <input
                   type="date"
                   value={formData.leaseFinalDate ? formData.leaseFinalDate.split('T')[0] : ''}
                   onChange={e => setFormData({ ...formData, leaseFinalDate: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Speed Draft Status</p>
+          <div className="form-group" style={{ marginBottom: '15px' }}>
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={formData.hasSpeedDraft || false}
+                onChange={e => setFormData({ ...formData, hasSpeedDraft: e.target.checked })}
+              />
+              <span>This vehicle has an active Speed Draft</span>
+            </label>
+          </div>
+
+          {formData.hasSpeedDraft && (
+            <div className="form-grid-2">
+              <div className="form-group">
+                <label>Speed Draft Company</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Bank Name"
+                  value={formData.speedDraftCompany || ''}
+                  onChange={e => setFormData({ ...formData, speedDraftCompany: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Monthly Premium (LKR)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.speedDraftMonthlyPremium || ''}
+                  onChange={e => setFormData({ ...formData, speedDraftMonthlyPremium: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Monthly Due Date (Day)</label>
+                <input
+                  type="number"
+                  min="1" max="31"
+                  placeholder="e.g. 15"
+                  value={formData.speedDraftDueDate || ''}
+                  onChange={e => setFormData({ ...formData, speedDraftDueDate: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Speed Draft Start Date</label>
+                <input
+                  type="date"
+                  value={formData.speedDraftStartDate ? formData.speedDraftStartDate.split('T')[0] : ''}
+                  onChange={e => setFormData({ ...formData, speedDraftStartDate: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Final Premium Date</label>
+                <input
+                  type="date"
+                  value={formData.speedDraftFinalDate ? formData.speedDraftFinalDate.split('T')[0] : ''}
+                  onChange={e => setFormData({ ...formData, speedDraftFinalDate: e.target.value })}
                 />
               </div>
             </div>
@@ -428,18 +508,6 @@ const Vehicles = () => {
     }
   };
 
-  const handlePaymentToggle = async (vehicleId, year, month, paid) => {
-    try {
-      await markLeasePayment(vehicleId, year, month, paid);
-      setSuccessMsg(paid ? 'Lease marked as Paid ✓' : 'Lease marked as Unpaid');
-      fetchVehicles();
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      setErrorMsg('Failed to update lease payment');
-      setTimeout(() => setErrorMsg(''), 3000);
-    }
-  };
-
   const handleExportPDF = () => {
     const exportColumns = ['VEHICLE NUMBER', 'MODEL', 'TYPE', 'FUEL TYPE', 'STATUS'];
     const exportData = filteredRecords.map(v => [
@@ -514,7 +582,7 @@ const Vehicles = () => {
       {errorMsg && <div className="error-banner" style={{ margin: '0 20px 20px' }}>{errorMsg}</div>}
 
       {activeTab === 'leasing' ? (
-        <LeasingBook vehicles={vehicleRecords} onPaymentToggle={handlePaymentToggle} />
+        <LeasingBook vehicles={vehicleRecords} />
       ) : (
         <>
           <DataTable

@@ -94,7 +94,9 @@ const DataTable = ({ columns, data, emptyMessage, loading, onRowClick }) => {
                       'RENEWAL DATE': 'renewalDate',
                       'DUE DATE':     'date',
                       'FINAL DATE':   'finalDate',
-                      'MONTHLY PREMIUM': 'amount'
+                      'MONTHLY PREMIUM': 'amount',
+                      'JOBS': 'jobs',
+                      'DAYS': 'days'
                     };
                     
                     // Priority: Explicit Map -> Exact Column Key -> Lowercase Column Key
@@ -112,6 +114,17 @@ const DataTable = ({ columns, data, emptyMessage, loading, onRowClick }) => {
                     // Smart Fallbacks for Vehicle
                     if (col === 'VEHICLE' && (value === undefined || value === null)) {
                       value = row.vehicleNo || row.vehicle || '—';
+                    }
+                    
+                    // Pre-render formatting for multiple vehicles
+                    if (col === 'VEHICLE' && typeof value === 'string' && value.includes(',')) {
+                        const list = value.split(',').map(v => v.trim());
+                        value = (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {list.slice(0, 2).map((v, i) => <span key={i} className="status-badge" style={{ fontSize: '10px', padding: '2px 5px', background: '#F1F5F9', color: '#475569' }}>{v}</span>)}
+                            {list.length > 2 && <span style={{ fontSize: '10px', color: '#94A3B8' }}>+{list.length - 2} more</span>}
+                          </div>
+                        );
                     }
                     if (col === 'LOCATION' && (value === undefined || value === '—' || value === null)) {
                       value = row.location || row.site || '—';

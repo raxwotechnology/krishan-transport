@@ -6,7 +6,9 @@ const ExpenseSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   category: { type: String },
   note: { type: String },
-  hireId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' }
+  hireId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hire' },
+  vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  vehicleNumber: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Expense', ExpenseSchema);

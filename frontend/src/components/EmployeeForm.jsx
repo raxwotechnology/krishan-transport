@@ -23,7 +23,7 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
         name: '', nic: '', role: 'Driver', contact: '',
         joinedDate: new Date().toISOString().split('T')[0],
         status: 'Active', username: '', password: '',
-        basicSalary: 0, hourlyRate: 0
+        salaryType: 'Basic', basicSalary: 0, dailyWage: 0, hourlyRate: 0
       });
     }
   }, [initialData]);
@@ -104,12 +104,28 @@ const EmployeeForm = ({ onSubmit, onCancel, initialData }) => {
           <p className="form-section-title">Salary Configuration</p>
           <div className="form-grid-2">
             <div className="form-group">
-              <label>Basic Salary (Monthly)</label>
-              <input type="number" name="basicSalary" value={formData.basicSalary} onChange={handleChange} placeholder="e.g. 30000" />
+              <label>Salary Structure *</label>
+              <select name="salaryType" value={formData.salaryType || 'Basic'} onChange={handleChange}>
+                <option value="Basic">Fixed Basic Salary (Monthly)</option>
+                <option value="Daily">Daily Wage (Per Day Worked)</option>
+              </select>
             </div>
+            
+            {(formData.salaryType === 'Daily') ? (
+              <div className="form-group">
+                <label>Daily Wage Rate (LKR)</label>
+                <input type="number" name="dailyWage" value={formData.dailyWage || 0} onChange={handleChange} placeholder="e.g. 2000" />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label>Basic Salary (Monthly) (LKR)</label>
+                <input type="number" name="basicSalary" value={formData.basicSalary || 0} onChange={handleChange} placeholder="e.g. 30000" />
+              </div>
+            )}
+            
             <div className="form-group">
-              <label>Hourly Rate (Hires)</label>
-              <input type="number" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} placeholder="e.g. 200" />
+              <label>Hourly Working Rate (LKR)</label>
+              <input type="number" name="hourlyRate" value={formData.hourlyRate || 0} onChange={handleChange} placeholder="e.g. 200" />
             </div>
           </div>
         </div>

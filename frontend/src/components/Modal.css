@@ -94,3 +94,40 @@
   justify-content: flex-end;
   gap: 12px;
 }
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+  .modal-content {
+    max-width: 100%;
+    border-radius: var(--r-lg);
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-content.wide {
+    max-width: 100%;
+  }
+  .modal-header {
+    padding: 14px 18px;
+  }
+  .modal-body {
+    overflow-y: auto;
+    flex: 1;
+  }
+  .modal-footer {
+    padding: 12px 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end; /* Slide up from bottom on very small screens */
+  }
+  .modal-content {
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    max-height: 90vh;
+  }
+}

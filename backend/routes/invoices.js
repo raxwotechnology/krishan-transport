@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Invoice = require('../models/Invoice');
+const Payment = require('../models/Payment');
+const Hire    = require('../models/Hire');
 const Counter = require('../models/Counter');
 
 async function getNextSequence(name) {
@@ -11,6 +13,10 @@ async function getNextSequence(name) {
   );
   return counter.seq;
 }
+
+/* ── Status Mapping Helpers ──────────────────────────────────── */
+const invStatusToPayment = { Paid: 'Paid', Draft: 'Pending', Sent: 'Pending', Cancelled: 'Pending' };
+const invStatusToHire    = { Paid: 'Completed', Draft: 'Pending', Sent: 'Pending', Cancelled: 'Pending' };
 
 // Get all invoices
 router.get('/', async (req, res) => {
@@ -25,13 +31,11 @@ router.get('/', async (req, res) => {
 // Create invoice
 router.post('/', async (req, res) => {
   try {
-    // Auto-generate invoice number if not provided
     if (!req.body.invoiceNo || req.body.invoiceNo === '') {
-      const seq = await getNextSequence('invoiceNo');
+      const seq  = await getNextSequence('invoiceNo');
       const year = new Date().getFullYear().toString().slice(-2);
       req.body.invoiceNo = `INV-${year}-${seq.toString().padStart(4, '0')}`;
     }
-
     const newInvoice = new Invoice(req.body);
     const saved = await newInvoice.save();
     res.status(201).json(saved);
@@ -40,10 +44,32 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update invoice
+// Update invoice + cross-sync
 router.put('/:id', async (req, res) => {
   try {
     const updated = await Invoice.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ message: 'Invoice not found' });
+
+    /* ── Cross-sync when status changes ────────────────────── */
+    if (req.body.status) {
+      const payStatus  = invStatusToPayment[req.body.status] || 'Pending';
+      const hireStatus = invStatusToHire[req.body.status]    || 'Pending';
+
+      try {
+        if (updated.hireId) {
+          await Payment.findOneAndUpdate({ hireId: updated.hireId }, { status: payStatus });
+          await Hire.findByIdAndUpdate(updated.hireId, { status: hireStatus });
+        }
+        if (updated.groupId) {
+          await Payment.findOneAndUpdate({ groupId: updated.groupId }, { status: payStatus });
+          await Hire.updateMany({ groupId: updated.groupId }, { status: hireStatus });
+        }
+        console.log(`[INVOICE→SYNC] Status "${req.body.status}" propagated — pay:${payStatus} hire:${hireStatus}`);
+      } catch (syncErr) {
+        console.error('[INVOICE→SYNC] Failed:', syncErr.message);
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });

@@ -9,6 +9,7 @@ import { Download, Search, PlusCircle, RefreshCw } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 const fmt = (n) => `LKR ${Number(n || 0).toLocaleString()}`;
@@ -20,6 +21,7 @@ const PaymentBook = () => {
   const userRole = localStorage.getItem('kt_user_role');
   const isDev    = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
 
   const [isModalOpen,   setIsModalOpen]   = React.useState(false);
   const [viewModalOpen, setViewModalOpen] = React.useState(false);
@@ -39,7 +41,10 @@ const PaymentBook = () => {
     'DATE', 'CLIENT', 'VEHICLE', 'HIRE AMT', 'BALANCE', 'STATUS', 'ACTION'
   ];
 
-  React.useEffect(() => { fetchRecords(); fetchVehicles(); }, []);
+  React.useEffect(() => { 
+    fetchRecords(); 
+    fetchVehicles(); 
+  }, [selectedMonth, selectedYear, isFilterActive]);
 
   const fetchVehicles = async () => {
     try {
@@ -52,7 +57,11 @@ const PaymentBook = () => {
     setLoading(true);
     try {
       const res  = await paymentAPI.get();
-      const data = Array.isArray(res.data) ? res.data : [];
+      let data = Array.isArray(res.data) ? res.data : [];
+
+      // Global Month Filter
+      data = filterByMonth(data, 'date', selectedMonth, selectedYear, isFilterActive);
+
       setRawRecords(data);
       setError(null);
     } catch (err) {
@@ -93,8 +102,21 @@ const PaymentBook = () => {
         {item.status || 'Pending'}
       </span>
     ),
+    // Aggregate site for grouped payments
+    address: item.isGrouped && item.items?.length > 0
+      ? [...new Set(item.items.map(i => i.city || i.address || '').filter(Boolean))].join(', ') || item.address
+      : item.address,
+    city: item.isGrouped && item.items?.length > 0
+      ? 'Multiple'
+      : (item.city || item.location),
+    startTime: item.startTime || (item.isGrouped && item.items?.length > 0 ? item.items.sort((a,b) => (a.startTime||'99:99').localeCompare(b.startTime||'99:99'))[0]?.startTime : undefined),
+    endTime: item.endTime || (item.isGrouped && item.items?.length > 0 ? item.items.sort((a,b) => (b.endTime||'00:00').localeCompare(a.endTime||'00:00'))[0]?.endTime : undefined),
+    restTime:    item.restTime != null ? `${item.restTime}min` : '—',
     action: (
       <div className="table-actions" onClick={e => e.stopPropagation()}>
+        {item.isGrouped && (
+          <span style={{ fontSize: '10px', color: '#1e293b', fontWeight: 'bold', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', marginRight: '8px' }}>GROUPED</span>
+        )}
         {canManage && <button className="edit-btn"   onClick={() => handleEdit(item)}>Edit</button>}
         {canManage && <button className="delete-btn" onClick={() => handleDelete(item._id)}>Delete</button>}
       </div>
@@ -105,8 +127,11 @@ const PaymentBook = () => {
   const displayRows = React.useMemo(() => {
     return rawRecords
       .map(buildRow)
-      .filter(r => {
-        const matchV = !selectedVehicle || r.vehicle === selectedVehicle;
+    .filter(r => {
+        const matchV = !selectedVehicle || 
+          (r.vehicle?.includes(',') 
+            ? r.vehicle.split(',').map(v => v.trim()).includes(selectedVehicle)
+            : r.vehicle === selectedVehicle);
         const q      = searchQuery.toLowerCase();
         const matchS = !q ||
           r.client?.toLowerCase().includes(q) ||
@@ -248,7 +273,11 @@ const PaymentBook = () => {
 
       {/* Detail View Modal */}
       <Modal isOpen={viewModalOpen} onClose={() => setViewModalOpen(false)} title="Payment Record Details" wide>
-        <RecordDetails data={selectedRecord} type="payment" />
+        <RecordDetails
+          data={selectedRecord}
+          type="payment"
+          onStatusChange={() => fetchRecords()}
+        />
         <div className="modal-footer" style={{ padding: '15px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', background: '#F8FAFC' }}>
           <button className="secondary-btn" onClick={() => setViewModalOpen(false)}>Close</button>
         </div>

@@ -13,6 +13,7 @@
   z-index: 100;
   overflow: hidden;
   border-right: 1px solid rgba(255,255,255,0.04);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ── Logo ── */
@@ -48,12 +49,20 @@
 }
 
 .app-logo {
-  height: 48px;
+  height: 40px;
   width: auto;
-  min-width: 120px;
+  min-width: 100px;
   object-fit: contain;
-  /* Removed filters that might cause visibility issues */
   display: block;
+  transition: all 0.3s;
+}
+
+.collapsed .app-logo {
+  min-width: 0;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  object-position: left;
 }
 
 .logo-text { display: flex; flex-direction: column; }
@@ -68,14 +77,21 @@
 
 /* ── Profile Card ── */
 .user-profile-simple {
-  margin: 14px 12px;
-  padding: 10px 12px;
+  margin: 14px 10px;
+  padding: 10px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: var(--r-md);
   display: flex;
   align-items: center;
   gap: 10px;
+  transition: all 0.3s;
+}
+
+.collapsed .user-profile-simple {
+  padding: 10px 0;
+  justify-content: center;
+  margin: 14px 8px;
 }
 
 .profile-initials {
@@ -109,6 +125,111 @@
   letter-spacing: 0.5px;
 }
 
+/* ── Month Filter ── */
+.month-filter-section {
+  margin: 0 12px 14px;
+  padding: 12px;
+  background: rgba(37, 99, 235, 0.04);
+  border: 1px dashed rgba(37, 99, 235, 0.2);
+  border-radius: var(--r-md);
+}
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #94A3B8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.filter-controls select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #FFFFFF; /* Pure white for maximum visibility */
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+.filter-controls select:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: #3B82F6;
+}
+
+.filter-controls select option {
+  background: #0F172A; /* Dark background for the dropdown items */
+  color: #FFFFFF;
+  padding: 10px;
+}
+
+.filter-controls select:focus {
+  border-color: #3B82F6;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 28px;
+  height: 16px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(255,255,255,0.1);
+  transition: .3s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+input:checked + .slider {
+  background-color: #3B82F6;
+}
+
+input:checked + .slider:before {
+  transform: translateX(12px);
+}
+
 /* ── Navigation ── */
 .sidebar-nav {
   flex: 1;
@@ -124,18 +245,24 @@
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   border: none;
   background: transparent;
-  color: #64748B;
-  border-radius: var(--r-md);
-  font-size: 0.83rem;
+  color: #94A3B8;
+  border-radius: 12px;
+  font-size: 0.85rem;
   font-weight: 500;
   width: 100%;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   position: relative;
+  white-space: nowrap;
+}
+
+.collapsed .nav-item {
+  padding: 10px;
+  justify-content: center;
 }
 
 .add-btn,

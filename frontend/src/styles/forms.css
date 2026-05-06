@@ -143,10 +143,11 @@
 @media (max-width: 768px) {
   .hire-form-scroll { padding: 16px; }
   .form-grid { grid-template-columns: 1fr; }
+  .form-grid-2 { grid-template-columns: 1fr; }
   .hire-form-footer { flex-direction: column; gap: 16px; align-items: stretch; }
   .total-display { align-items: center; text-align: center; }
-  .modal-actions { flex-direction: column; }
-.modal-actions button { width: 100%; }
+  .modal-actions { flex-direction: column; width: 100%; }
+  .modal-actions button { width: 100%; justify-content: center; }
 }
 
 .duplicate-btn {

@@ -16,8 +16,10 @@ import AttendanceBook from './components/AttendanceBook';
 import ExtraIncome from './components/ExtraIncome';
 import Expenses from './components/Expenses';
 import ComplianceBook from './components/ComplianceBook';
+import MaintenanceBook from './components/MaintenanceBook';
 import Login from './components/Login';
 import RoleSelection from './components/RoleSelection';
+import ServiceBook from './components/ServiceBook';
 import './App.css';
 
 const PAGE_TITLES = {
@@ -36,6 +38,8 @@ const PAGE_TITLES = {
   attendance: 'Staff Attendance',
   extraIncome: 'Extra Income Book',
   expenses: 'Expense Book',
+  maintenance: 'Maintenance Book',
+  services: 'Service Book',
 };
 
 const App = () => {
@@ -43,6 +47,7 @@ const App = () => {
   const [selectedRole, setSelectedRole] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const userRole = localStorage.getItem('kt_user_role');
   const userName = localStorage.getItem('kt_user_name');
 
@@ -103,6 +108,8 @@ const App = () => {
       case 'attendance': return <AttendanceBook />;
       case 'extraIncome': return <ExtraIncome />;
       case 'expenses': return <Expenses />;
+      case 'maintenance': return <MaintenanceBook />;
+      case 'services':    return <ServiceBook />;
       default:          return <Dashboard role={userRole} name={userName} />;
     }
   };
@@ -121,7 +128,7 @@ const App = () => {
   }
 
   return (
-    <div className={`app-layout ${isSidebarOpen ? 'sidebar-open' : ''}`}>
+    <div className={`app-layout ${isSidebarOpen ? 'sidebar-open' : ''} ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
@@ -140,6 +147,7 @@ const App = () => {
         role={userRole} 
         userName={userName}
         isOpen={isSidebarOpen}
+        isCollapsed={isSidebarCollapsed}
         onClose={() => setIsSidebarOpen(false)}
       />
       <main className="main-content">
@@ -151,6 +159,13 @@ const App = () => {
               title="Toggle Menu"
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <button 
+              className="desktop-collapse-btn" 
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              title="Toggle Sidebar"
+            >
+              <Menu size={20} />
             </button>
             <h2>{PAGE_TITLES[activeTab] || 'Dashboard'}</h2>
           </div>

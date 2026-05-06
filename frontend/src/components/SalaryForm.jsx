@@ -114,15 +114,23 @@ const SalaryForm = ({ onSubmit, onCancel, initialData }) => {
     let attendanceBonus = 0;
     let attendancePenalty = 0;
 
-    if (emp.role === 'Driver' || emp.role === 'Manager') {
+    const uniqueHireDates = new Set(jobs.map(h => new Date(h.date).toDateString())).size;
+    const effectiveWorkDays = Math.max(workDays, uniqueHireDates);
+
+    if (emp.salaryType === 'Daily') {
+      basic = effectiveWorkDays * (emp.dailyWage || 0);
+    } else {
       basic = emp.basicSalary || 0;
+    }
+
+    if (emp.role === 'Driver' || emp.role === 'Manager') {
       if (workDays < 5 && workDays > 0) attendancePenalty = 1000;
       if (workDays > 25) attendanceBonus = (workDays - 25) * 1000;
 
       if (emp.role === 'Driver') {
         totalHours = jobs.reduce((sum, j) => sum + (parseFloat(j.workingHours) || 0), 0);
         hourlyEarnings = totalHours * (emp.hourlyRate || 0);
-        dailyAllowance = workDays * 500;
+        dailyAllowance = effectiveWorkDays * 500;
       }
     } else if (emp.role === 'Helper') {
       const hiresByDate = {};
@@ -139,7 +147,11 @@ const SalaryForm = ({ onSubmit, onCancel, initialData }) => {
           if (s.morning) shiftPay += 3000;
           if (s.afternoon) shiftPay += 3000;
       });
-      hourlyEarnings = shiftPay;
+      
+      totalHours = jobs.reduce((sum, j) => sum + (parseFloat(j.workingHours) || 0), 0);
+      const extraHourly = totalHours * (emp.hourlyRate || 0);
+      
+      hourlyEarnings = shiftPay + extraHourly;
       totalHours = jobs.length;
     }
 

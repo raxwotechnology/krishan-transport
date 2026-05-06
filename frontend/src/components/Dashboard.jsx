@@ -9,6 +9,7 @@ import Modal from './Modal';
 import RecordDetails from './RecordDetails';
 import { AlertTriangle, Bell, Info } from 'lucide-react';
 import './Dashboard.css';
+import { useMonthFilter } from '../context/MonthFilterContext';
 
 /* ── Helpers ────────────────────────────────────────────── */
 const fmt = (n) => `LKR ${Number(n || 0).toLocaleString()}`;
@@ -43,10 +44,10 @@ const ReminderCard = ({ r }) => {
     <div className="reminder-card-premium" style={{ 
       background: 'white', 
       padding: '20px', 
-      borderRadius: '16px', 
-      border: `1px solid ${color}20`,
+      borderRadius: '20px', 
+      border: `1px solid ${color}15`,
       borderLeft: `6px solid ${color}`,
-      boxShadow: '0 4px 15px rgba(0,0,0,0.04)',
+      boxShadow: '0 8px 25px rgba(0,0,0,0.03)',
       position: 'relative',
       overflow: 'hidden',
     }}>
@@ -137,8 +138,15 @@ const Dashboard = ({ role, name }) => {
   const [loading, setLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState(null);
   
-  const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
-  const [selectedYear, setSelectedYear] = useState(String(currentYear));
+  const { 
+    selectedMonth: globalMonthIdx, 
+    selectedYear: globalYear, 
+    isFilterActive,
+    months 
+  } = useMonthFilter();
+
+  const selectedMonth = months[globalMonthIdx];
+  const selectedYear = String(globalYear);
 
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -198,17 +206,18 @@ const Dashboard = ({ role, name }) => {
 
   // Helper to filter by selected period
   const filterByPeriod = (records, dateField = 'date') => {
+    if (!isFilterActive) return records;
     return records.filter(r => {
       const d = new Date(r[dateField] || r.createdAt);
       const yearMatch = d.getFullYear() === parseInt(selectedYear);
-      const monthMatch = selectedMonth === 'All' || d.getMonth() === MONTHS.indexOf(selectedMonth);
+      const monthMatch = d.getMonth() === globalMonthIdx;
       return yearMatch && monthMatch;
     });
   };
 
   const groupedReminders = useMemo(() => {
-    if (!isAdmin) return { insurance: [], license: [], safety: [], leasing: [] };
-    const groups = { insurance: [], license: [], safety: [], leasing: [] };
+    if (!isAdmin) return { insurance: [], license: [], safety: [], leasing: [], speedDraft: [] };
+    const groups = { insurance: [], license: [], safety: [], leasing: [], speedDraft: [] };
     const today = new Date();
     
     const getDaysLeft = (date) => {
@@ -229,8 +238,14 @@ const Dashboard = ({ role, name }) => {
       }
       if (v.hasLeasing && v.leaseDueDate) {
         const nextDue = new Date(today.getFullYear(), today.getMonth(), v.leaseDueDate);
-        if (isExpiringSoon(nextDue)) {
+        if (isExpiringSoon(nextDue, 7)) {
            groups.leasing.push({ vehicle: v.number, type: 'Lease Payment Due', date: nextDue, icon: CreditCard, amount: v.monthlyPremium, daysLeft: getDaysLeft(nextDue) });
+        }
+      }
+      if (v.hasSpeedDraft && v.speedDraftDueDate) {
+        const nextDue = new Date(today.getFullYear(), today.getMonth(), v.speedDraftDueDate);
+        if (isExpiringSoon(nextDue, 7)) {
+           groups.speedDraft.push({ vehicle: v.number, type: 'Speed Draft Due', date: nextDue, icon: Wallet, amount: v.speedDraftMonthlyPremium, daysLeft: getDaysLeft(nextDue) });
         }
       }
     });
@@ -242,17 +257,19 @@ const Dashboard = ({ role, name }) => {
     Object.values(groupedReminders).some(g => g.length > 0),
   [groupedReminders]);
 
+
+
   /* ── Salary data filtered for Employee ── */
   const mySalaries = useMemo(() => {
     if (!name) return [];
     const n = name.trim().toLowerCase();
-    return data.salaries
-      .filter(s => {
-        const en = s.employee?.trim().toLowerCase() || '';
-        return en.includes(n) || n.includes(en);
-      })
-      .sort((a, b) => b.month?.localeCompare(a.month || '') || 0);
-  }, [data.salaries, name]);
+    const filtered = data.salaries.filter(s => {
+      const en = s.employee?.trim().toLowerCase() || '';
+      return en.includes(n) || n.includes(en);
+    });
+    
+    return filterByPeriod(filtered, 'createdAt').sort((a, b) => b.month?.localeCompare(a.month || '') || 0);
+  }, [data.salaries, name, isFilterActive, globalMonthIdx, globalYear]);
 
   const myTotalEarned = useMemo(() =>
     mySalaries.reduce((sum, s) => sum + (parseFloat(s.netPay) || 0), 0),
@@ -283,13 +300,23 @@ const Dashboard = ({ role, name }) => {
     const fExpenses    = filterByPeriod(data.expenses, 'date');
     const fExtraIncome = filterByPeriod(data.extraIncome, 'date');
 
-    const totalHireRevenue = fPayments.reduce((s, r) => s + (parseFloat(r.hireAmount)  || 0), 0);
-    const totalCollected   = fPayments.reduce((s, r) => s + (parseFloat(r.takenAmount) || 0), 0);
-    const totalBalance     = fPayments.reduce((s, r) => s + (parseFloat(r.balance)     || 0), 0);
-    const totalDiesel      = fDiesel.reduce((s, r)   => s + (parseFloat(r.total)  || parseFloat(r.amount) || 0), 0);
-    const totalSalary      = fSalaries.reduce((s, r) => s + (parseFloat(r.netPay) || 0), 0);
-    const totalExpenses    = fExpenses.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-    const totalExtra       = fExtraIncome.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+    const parseVal = (v) => typeof v === 'number' ? v : parseFloat(String(v || '0').replace(/[^0-9.-]+/g, "")) || 0;
+    
+    const getAccurateAmount = (r, amountField) => {
+      const items = r.items || r.originalHires || [];
+      if (items.length > 0) {
+        return items.reduce((s, i) => s + parseVal(i.totalAmount || i.amount || i.billAmount || 0), 0);
+      }
+      return parseVal(r[amountField] || 0);
+    };
+
+    const totalHireRevenue = fPayments.reduce((s, r) => s + getAccurateAmount(r, 'hireAmount'), 0);
+    const totalCollected   = fPayments.reduce((s, r) => s + parseVal(r.takenAmount || r.paidAmount), 0);
+    const totalBalance     = fPayments.reduce((s, r) => s + parseVal(r.balance), 0);
+    const totalDiesel      = fDiesel.reduce((s, r)   => s + parseVal(r.total || r.amount), 0);
+    const totalSalary      = fSalaries.reduce((s, r) => s + parseVal(r.netPay), 0);
+    const totalExpenses    = fExpenses.reduce((s, r) => s + parseVal(r.amount), 0);
+    const totalExtra       = fExtraIncome.reduce((s, r) => s + parseVal(r.amount), 0);
 
     // Leasing Cost — only count months actually marked as PAID
     const totalLeasing = data.vehicles
@@ -297,16 +324,11 @@ const Dashboard = ({ role, name }) => {
       .reduce((s, v) => {
         const premium = parseFloat(v.monthlyPremium) || 0;
         const payments = v.leasePayments || [];
-        if (selectedMonth === 'All') {
-          // Sum all paid months in selected year
-          const paidMonths = payments.filter(lp =>
-            lp.year === parseInt(selectedYear) && lp.paid
-          ).length;
-          return s + paidMonths * premium;
+        if (!isFilterActive) {
+          return s + (payments.filter(lp => lp.paid).length * premium);
         } else {
           // Check if this specific month is paid
-          const monthIdx = ['January','February','March','April','May','June',
-            'July','August','September','October','November','December'].indexOf(selectedMonth) + 1;
+          const monthIdx = globalMonthIdx + 1;
           const entry = payments.find(lp =>
             lp.year === parseInt(selectedYear) && lp.month === monthIdx && lp.paid
           );
@@ -321,15 +343,18 @@ const Dashboard = ({ role, name }) => {
 
 
     if (!isAdmin) {
-      const myJobs = data.hires.filter(h => h.driverName?.trim().toLowerCase() === name?.trim().toLowerCase() || h.helperName?.trim().toLowerCase() === name?.trim().toLowerCase());
+      const myAllJobs = data.hires.filter(h => h.driverName?.trim().toLowerCase() === name?.trim().toLowerCase() || h.helperName?.trim().toLowerCase() === name?.trim().toLowerCase());
+      const myJobs = filterByPeriod(myAllJobs);
       const myCompleted = myJobs.filter(h => h.status === 'Completed' || h.status === 'Paid').length;
-      const myFuel = data.diesel.filter(d => d.vehicle && data.vehicles.find(v => v.number === d.vehicle && (v.driver?.trim().toLowerCase() === name?.trim().toLowerCase())));
+      
+      const myAllFuel = data.diesel.filter(d => d.vehicle && data.vehicles.find(v => v.number === d.vehicle && (v.driver?.trim().toLowerCase() === name?.trim().toLowerCase())));
+      const myFuel = filterByPeriod(myAllFuel);
 
       return [
-        { id: 1, title: 'My Jobs',      value: `${myJobs.length}`,         subtext: 'Total assigned',             icon: TrendingUp,  color: '#2563EB' },
-        { id: 2, title: 'My Earnings',  value: fmt(myTotalEarned),             subtext: `${mySalaries.length} salary records`, icon: Wallet, color: '#10B981' },
-        { id: 3, title: 'Completed',    value: `${myCompleted}`, subtext: 'Completed jobs', icon: CheckCircle, color: '#059669' },
-        { id: 4, title: 'Fuel Logs',    value: `${myFuel.length}`,        subtext: 'Entries for my vehicle',     icon: Fuel,        color: '#F59E0B' },
+        { id: 1, title: 'My Jobs',      value: `${myJobs.length}`,         subtext: isFilterActive ? 'Assigned this period' : 'Total assigned (Lifetime)',             icon: TrendingUp,  color: '#2563EB' },
+        { id: 2, title: 'My Earnings',  value: fmt(myTotalEarned),             subtext: `${mySalaries.length} records in this period`, icon: Wallet, color: '#10B981' },
+        { id: 3, title: 'Completed',    value: `${myCompleted}`, subtext: isFilterActive ? 'Completed this period' : 'Total completed (Lifetime)', icon: CheckCircle, color: '#059669' },
+        { id: 4, title: 'Fuel Logs',    value: `${myFuel.length}`,        subtext: isFilterActive ? 'Fuel entries this period' : 'Total entries (Lifetime)',     icon: Fuel,        color: '#F59E0B' },
       ];
     }
 
@@ -369,30 +394,39 @@ const Dashboard = ({ role, name }) => {
       {/* ── Urgent Reminders Section ── */}
       {isAdmin && hasAnyReminders && (
         <div className="urgent-reminders-section" style={{ marginBottom: '36px', animation: 'fadeIn 0.5s ease' }}>
-          <div className="section-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-            <div style={{ background: '#FEE2E2', padding: '8px', borderRadius: '10px' }}>
-              <Bell size={20} color="#EF4444" />
+          <div className="section-header-premium" style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '15px', 
+            marginBottom: '24px',
+            background: 'white',
+            padding: '16px 24px',
+            borderRadius: '24px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+            border: '1px solid #F1F5F9'
+          }}>
+            <div style={{ background: '#FEE2E2', padding: '10px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bell size={22} color="#EF4444" />
             </div>
-            <h3 style={{ margin: 0, color: '#1E293B', fontSize: '1.25rem', letterSpacing: '-0.02em', fontWeight: 800 }}>Urgent Compliance Status</h3>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, color: '#1E293B', fontSize: '1.25rem', letterSpacing: '-0.03em', fontWeight: 900 }}>Urgent Compliance Status</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94A3B8', fontWeight: 600 }}>Immediate attention required for vehicle documents</p>
+            </div>
           </div>
 
-          <div className="reminders-columns-grid" style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-            gap: '20px' 
-          }}>
+          <div className="reminders-columns-grid">
             
             {/* 1. Insurance Section */}
-            <div className="reminder-column" style={{ background: '#F8FAFC', padding: '20px', borderRadius: '20px', border: '1px solid #E2E8F0' }}>
-              <h4 style={{ fontSize: '0.85rem', color: '#3B82F6', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldCheck size={18} /> Insurance Expirations
+            <div className="reminder-column" style={{ background: 'white', padding: '24px', borderRadius: '32px', border: '1px solid #F1F5F9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+              <h4 style={{ fontSize: '0.8rem', color: '#3B82F6', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldCheck size={18} /> Insurance
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {groupedReminders.insurance.length > 0 ? (
                   groupedReminders.insurance.map((r, i) => <ReminderCard key={i} r={r} />)
                 ) : (
-                  <div style={{ padding: '15px', textAlign: 'center', background: 'white', borderRadius: '14px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #CBD5E1' }}>
-                    <CheckCircle size={16} style={{ marginBottom: '4px', color: '#10B981' }} /><br/>
+                  <div style={{ padding: '20px', textAlign: 'center', background: '#F8FAFC', borderRadius: '20px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #E2E8F0' }}>
+                    <CheckCircle size={18} style={{ marginBottom: '6px', color: '#10B981' }} /><br/>
                     All Insurances up to date
                   </div>
                 )}
@@ -400,16 +434,16 @@ const Dashboard = ({ role, name }) => {
             </div>
 
             {/* 2. License Section */}
-            <div className="reminder-column" style={{ background: '#F8FAFC', padding: '20px', borderRadius: '20px', border: '1px solid #E2E8F0' }}>
-              <h4 style={{ fontSize: '0.85rem', color: '#10B981', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FileText size={18} /> License Expirations
+            <div className="reminder-column" style={{ background: 'white', padding: '24px', borderRadius: '32px', border: '1px solid #F1F5F9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+              <h4 style={{ fontSize: '0.8rem', color: '#10B981', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} /> License
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {groupedReminders.license.length > 0 ? (
                   groupedReminders.license.map((r, i) => <ReminderCard key={i} r={r} />)
                 ) : (
-                  <div style={{ padding: '15px', textAlign: 'center', background: 'white', borderRadius: '14px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #CBD5E1' }}>
-                    <CheckCircle size={16} style={{ marginBottom: '4px', color: '#10B981' }} /><br/>
+                  <div style={{ padding: '20px', textAlign: 'center', background: '#F8FAFC', borderRadius: '20px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #E2E8F0' }}>
+                    <CheckCircle size={18} style={{ marginBottom: '6px', color: '#10B981' }} /><br/>
                     All Licenses up to date
                   </div>
                 )}
@@ -417,17 +451,34 @@ const Dashboard = ({ role, name }) => {
             </div>
 
             {/* 3. Leasing Section */}
-            <div className="reminder-column" style={{ background: '#F8FAFC', padding: '20px', borderRadius: '20px', border: '1px solid #E2E8F0' }}>
-              <h4 style={{ fontSize: '0.85rem', color: '#8B5CF6', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CreditCard size={18} /> Lease Payments
+            <div className="reminder-column" style={{ background: 'white', padding: '24px', borderRadius: '32px', border: '1px solid #F1F5F9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+              <h4 style={{ fontSize: '0.8rem', color: '#8B5CF6', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CreditCard size={18} /> Leasing
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {groupedReminders.leasing.length > 0 ? (
                   groupedReminders.leasing.map((r, i) => <ReminderCard key={i} r={r} />)
                 ) : (
-                  <div style={{ padding: '15px', textAlign: 'center', background: 'white', borderRadius: '14px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #CBD5E1' }}>
-                    <CheckCircle size={16} style={{ marginBottom: '4px', color: '#10B981' }} /><br/>
-                    No payments due today
+                  <div style={{ padding: '20px', textAlign: 'center', background: '#F8FAFC', borderRadius: '20px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #E2E8F0' }}>
+                    <CheckCircle size={18} style={{ marginBottom: '6px', color: '#10B981' }} /><br/>
+                    No payments due
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 4. Speed Draft Section */}
+            <div className="reminder-column" style={{ background: 'white', padding: '24px', borderRadius: '32px', border: '1px solid #F1F5F9', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+              <h4 style={{ fontSize: '0.8rem', color: '#F59E0B', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Wallet size={18} /> Speed Draft
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {groupedReminders.speedDraft.length > 0 ? (
+                  groupedReminders.speedDraft.map((r, i) => <ReminderCard key={i} r={r} />)
+                ) : (
+                  <div style={{ padding: '20px', textAlign: 'center', background: '#F8FAFC', borderRadius: '20px', color: '#94A3B8', fontSize: '0.85rem', border: '1px dashed #E2E8F0' }}>
+                    <CheckCircle size={18} style={{ marginBottom: '6px', color: '#10B981' }} /><br/>
+                    No speed drafts due
                   </div>
                 )}
               </div>
@@ -437,6 +488,8 @@ const Dashboard = ({ role, name }) => {
         </div>
       )}
 
+
+
       {/* ── Header ── */}
       <div className="dashboard-header">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -444,21 +497,21 @@ const Dashboard = ({ role, name }) => {
             {!isAdmin ? `Hello, ${name}` : 'Business Overview'}
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-            <select 
-              value={selectedMonth} 
-              onChange={e => setSelectedMonth(e.target.value)}
-              className="period-select"
-            >
-              <option value="All">All Months</option>
-              {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select 
-              value={selectedYear} 
-              onChange={e => setSelectedYear(e.target.value)}
-              className="period-select"
-            >
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <div style={{ 
+                padding: '6px 14px', 
+                background: isFilterActive ? '#EFF6FF' : '#F1F5F9', 
+                color: isFilterActive ? '#2563EB' : '#64748B',
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                border: isFilterActive ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+            }}>
+                <Clock size={14} />
+                {isFilterActive ? `VIEWING: ${selectedMonth.toUpperCase()} ${selectedYear}` : 'VIEWING: ALL HISTORY'}
+            </div>
             {lastFetch && (
               <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 500, marginLeft: '8px' }}>
                 Refreshed: {lastFetch.toLocaleTimeString()}
@@ -508,7 +561,7 @@ const Dashboard = ({ role, name }) => {
               <p>No salary records found for your account.</p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="salary-scroll-container">
               {/* Table header */}
               <div className="salary-header">
                 <span className="salary-cell salary-month">Month</span>
@@ -583,7 +636,7 @@ const Dashboard = ({ role, name }) => {
             ) : allSalaries.length === 0 ? (
               <div className="empty-state"><div className="empty-icon" /><p>No salary records yet.</p></div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="salary-scroll-container">
                 <div className="salary-header">
                   <span className="salary-cell salary-month">Month</span>
                   <span className="salary-cell">Employee</span>

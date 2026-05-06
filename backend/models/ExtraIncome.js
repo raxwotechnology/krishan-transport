@@ -2,9 +2,13 @@ const mongoose = require('mongoose');
 
 const ExtraIncomeSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
-  description: { type: String, required: true },
+  jobType: { type: String, required: true },
+  description: { type: String },
   amount: { type: Number, required: true },
-  category: { type: String },
+  employees: [{ type: String }],
+  vehicle: { type: String },
+  address: { type: String },
+  location: { type: String },
   note: { type: String }
 }, { timestamps: true });
 

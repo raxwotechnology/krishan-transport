@@ -114,6 +114,11 @@ const SalaryGeneratorModal = ({ onClose, onComplete }) => {
             shifts.push({ date, shift: 'Evening', amount: 3000 });
           }
         });
+        
+        const extraTotalHours = jobs.reduce((sum, j) => sum + (parseFloat(j.workingHours) || 0), 0);
+        const extraHourly = extraTotalHours * (emp.hourlyRate || 0);
+        hourlyEarnings += extraHourly;
+        
         totalHours = jobs.length; // For helpers, show jobs count
       } else {
         totalHours = jobs.reduce((sum, j) => sum + (parseFloat(j.workingHours) || 0), 0);
@@ -122,8 +127,14 @@ const SalaryGeneratorModal = ({ onClose, onComplete }) => {
 
       const uniqueHireDates = new Set(jobs.map(h => new Date(h.date).toDateString())).size;
       const effectiveWorkDays = Math.max(workDays, uniqueHireDates);
-      const dailyAllowance = effectiveWorkDays * 500;
-      const basic = emp.basicSalary || 0;
+      const dailyAllowance = emp.role === 'Driver' ? effectiveWorkDays * 500 : 0;
+      
+      let basic = 0;
+      if (emp.salaryType === 'Daily') {
+        basic = effectiveWorkDays * (emp.dailyWage || 0);
+      } else {
+        basic = emp.basicSalary || 0;
+      }
 
       // 4. Filter advances for this month/year
       const totalAdvance = advances.filter(ad => {

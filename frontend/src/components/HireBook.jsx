@@ -9,11 +9,14 @@ import { Download, Search, PlusCircle, RefreshCw } from 'lucide-react';
 import '../styles/forms.css';
 import '../styles/books.css';
 import VehicleFilter from './VehicleFilter';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
 
 const HireBook = () => {
   const userRole = localStorage.getItem('kt_user_role');
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const canManage = isDev || ['Admin', 'Manager'].includes(userRole);
+
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [viewModalOpen, setViewModalOpen] = React.useState(false);
@@ -34,7 +37,7 @@ const HireBook = () => {
   React.useEffect(() => {
     fetchRecords();
     fetchVehicles();
-  }, []);
+  }, [selectedMonth, selectedYear, isFilterActive]);
 
   const fetchVehicles = async () => {
     try {
@@ -47,10 +50,66 @@ const HireBook = () => {
     setLoading(true);
     try {
       const response = await hireAPI.get();
-      const rawData = Array.isArray(response.data) ? response.data : [];
-      const formatted = rawData.map(item => ({
+      let rawData = Array.isArray(response.data) ? response.data : [];
+      
+      // Global Month Filter
+      rawData = filterByMonth(rawData, 'date', selectedMonth, selectedYear, isFilterActive);
+
+      // --- Grouping Logic ---
+      const groupedData = [];
+      const groupMap = new Map();
+
+      rawData.forEach(item => {
+        if (item.groupId && item.isGrouped) {
+          if (!groupMap.has(item.groupId)) {
+            groupMap.set(item.groupId, {
+              ...item,
+              _isGroupSummary: true,
+              originalHires: [item],
+              totalAmount: item.totalAmount || 0,
+              billAmount: item.billAmount || 0,
+              dieselCost: item.dieselCost || 0,
+              commission: item.commission || 0,
+              vehicle: item.vehicle,
+              billNumber: item.billNumber,
+              city: item.city || item.location || ''
+            });
+          } else {
+            const existing = groupMap.get(item.groupId);
+            existing.originalHires.push(item);
+            existing.totalAmount += (item.totalAmount || 0);
+            existing.billAmount += (item.billAmount || 0);
+            existing.dieselCost += (item.dieselCost || 0);
+            existing.commission += (item.commission || 0);
+            
+            // Avoid duplicate vehicle numbers in display
+            if (!existing.vehicle.includes(item.vehicle)) {
+              existing.vehicle += `, ${item.vehicle}`;
+            }
+            // Concatenate Bill Numbers
+            if (item.billNumber && !existing.billNumber.includes(item.billNumber)) {
+              existing.billNumber += `, ${item.billNumber}`;
+            }
+            // City check
+            if (item.city && existing.city !== item.city && !existing.city.includes('Multiple')) {
+              existing.city = 'Multiple';
+            }
+          }
+        } else {
+          // Individual hire
+          groupedData.push({ ...item, originalHires: [item] });
+        }
+      });
+
+      // Add groups to the final array
+      groupMap.forEach(val => groupedData.push(val));
+      
+      // Sort by date again as map breaks order
+      groupedData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const formatted = groupedData.map(item => ({
         ...item,
-        rawData:    item, // Store original for Editing
+        rawData:    item, 
         date:       new Date(item.date).toLocaleDateString(),
         billNumber: item.billNumber || '—',
         timeSheetNumber: item.timeSheetNumber || '—',
@@ -79,10 +138,15 @@ const HireBook = () => {
         ),
         action: (
           <div className="table-actions" onClick={e => e.stopPropagation()}>
-            {canManage && (
-              <button className="edit-btn" onClick={() => handleEdit(item)} title="Edit" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {!item._isGroupSummary && canManage && (
+              <button className="edit-btn" onClick={() => handleEdit(item)} title="Edit">
                 Edit
               </button>
+            )}
+            {item._isGroupSummary && (
+               <span style={{ fontSize: '10px', color: '#1D4ED8', fontWeight: 'bold', background: '#EFF6FF', padding: '2px 8px', borderRadius: '4px', border: '1px solid #BFDBFE' }}>
+                 📋 {item.originalHires?.length || '?'} Hires
+               </span>
             )}
             {canManage && (
               <button className="duplicate-btn" onClick={() => handleDuplicate(item)} title="Add More" style={{ padding: '4px 8px' }}>
@@ -90,7 +154,7 @@ const HireBook = () => {
               </button>
             )}
             {canManage && (
-              <button className="delete-btn" onClick={() => handleDelete(item._id)} title="Delete">
+              <button className="delete-btn" onClick={() => handleDelete(item._isGroupSummary ? item.groupId : item._id, !!item._isGroupSummary)} title="Delete">
                 Delete
               </button>
             )}
@@ -109,7 +173,10 @@ const HireBook = () => {
 
   const filteredRecords = React.useMemo(() => {
     return hireRecords.filter(r => {
-      const matchVehicle = !selectedVehicle || r.vehicle === selectedVehicle;
+      const matchVehicle = !selectedVehicle || 
+        (r.vehicle?.includes(',') 
+          ? r.vehicle.split(',').map(v => v.trim()).includes(selectedVehicle)
+          : r.vehicle === selectedVehicle);
       const matchSearch = !searchQuery || 
         r.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -155,17 +222,35 @@ const HireBook = () => {
 
   const handleDuplicate = (item) => {
     const target = item.rawData || item;
-    // Remove database internal fields to treat it as a new entry
-    const { _id, createdAt, updatedAt, __v, ...rest } = target;
-    setEditingItem(rest);
+
+    if (item._isGroupSummary) {
+      // Adding MORE to an existing grouped hire → keep groupId so backend updates same row
+      const { _id, createdAt, updatedAt, __v, originalHires, _isGroupSummary, rawData,
+              status_disp, action, totalAmount_disp, billAmount_val, totalAmount_val,
+              dieselCost, commission, billAmount, ...rest } = target;
+      setEditingItem({ ...rest, groupId: target.groupId, groupBilling: true, isGrouped: true });
+    } else {
+      // Adding MORE to a single hire → strip _id, enable groupBilling; backend will create new group
+      const { _id, createdAt, updatedAt, __v, ...rest } = target;
+      setEditingItem({ ...rest, groupBilling: true, isGrouped: false });
+    }
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Delete this hire record?')) {
+  const handleDelete = async (id, isGroup = false) => {
+    const msg = isGroup 
+      ? 'Delete this ENTIRE group of hires? This will also remove the grouped Invoice and Payment.'
+      : 'Delete this hire record?';
+
+    if (window.confirm(msg)) {
       try {
-        await hireAPI.delete(id);
-        setSuccess('Record deleted.');
+        if (isGroup) {
+          // We'll call delete with a query param or a different endpoint
+          await hireAPI.delete(`${id}?isGroup=true`);
+        } else {
+          await hireAPI.delete(id);
+        }
+        setSuccess('Record(s) deleted.');
         fetchRecords();
         setTimeout(() => setSuccess(null), 3000);
       } catch (err) {
@@ -278,7 +363,11 @@ const HireBook = () => {
         title="Hire Job Details"
         wide
       >
-        <RecordDetails data={selectedRecord} type="hire" />
+        <RecordDetails
+          data={selectedRecord}
+          type="hire"
+          onStatusChange={() => { fetchRecords(); }}
+        />
         <div className="modal-footer" style={{ padding: '15px 24px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', background: '#F8FAFC' }}>
             <button className="secondary-btn" onClick={() => setViewModalOpen(false)}>Close</button>
         </div>

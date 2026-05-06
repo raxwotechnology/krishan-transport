@@ -1,47 +1,159 @@
 import React from 'react';
 import DataTable from './DataTable';
 import Modal from './Modal';
-import { extraIncomeAPI } from '../services/api';
-import { Download, Search, RefreshCw, PlusCircle, Wallet } from 'lucide-react';
+import { extraIncomeAPI, vehicleAPI, employeeAPI } from '../services/api';
+import { Download, Search, RefreshCw, PlusCircle, Wallet, Trash2, Plus } from 'lucide-react';
+import Autocomplete from './Autocomplete';
 import '../styles/forms.css';
 import '../styles/books.css';
+import { useMonthFilter, filterByMonth } from '../context/MonthFilterContext';
 
-const ExtraIncomeForm = ({ onSubmit, onCancel, initialData }) => {
-  const [formData, setFormData] = React.useState(initialData || { date: new Date().toISOString().split('T')[0], description: '', amount: '', category: '', note: '' });
+const ExtraIncomeForm = ({ onSubmit, onCancel, initialData, records = [] }) => {
+  const [vehicles, setVehicles] = React.useState([]);
+  const [employeesList, setEmployeesList] = React.useState([]);
+  const [formData, setFormData] = React.useState(initialData || { 
+    date: new Date().toISOString().split('T')[0], 
+    jobType: '',
+    description: '', 
+    amount: '', 
+    employees: [''], 
+    vehicle: '',
+    address: '',
+    location: '',
+    note: '' 
+  });
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [vRes, eRes] = await Promise.all([vehicleAPI.get(), employeeAPI.get()]);
+        setVehicles(Array.isArray(vRes.data) ? vRes.data : []);
+        setEmployeesList(Array.isArray(eRes.data) ? eRes.data : []);
+      } catch (err) { console.error(err); }
+    };
+    fetchData();
+  }, []);
 
   React.useEffect(() => {
     if (initialData) {
       const formattedDate = initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      setFormData({ ...initialData, date: formattedDate });
+      setFormData({ 
+        ...initialData, 
+        date: formattedDate,
+        employees: initialData.employees?.length ? initialData.employees : ['']
+      });
     }
   }, [initialData]);
+
+  const addEmployeeField = () => {
+    setFormData({ ...formData, employees: [...formData.employees, ''] });
+  };
+
+  const removeEmployeeField = (idx) => {
+    const updated = formData.employees.filter((_, i) => i !== idx);
+    setFormData({ ...formData, employees: updated.length ? updated : [''] });
+  };
+
+  const handleEmployeeChange = (idx, val) => {
+    const updated = [...formData.employees];
+    updated[idx] = val;
+    setFormData({ ...formData, employees: updated });
+  };
   
   return (
     <form className="hire-form" onSubmit={(e) => { e.preventDefault(); onSubmit(formData); }}>
       <div className="hire-form-scroll">
         <div className="form-section">
-          <p className="form-section-title">Income Details</p>
+          <p className="form-section-title">Income / Job Basics</p>
           <div className="form-grid-2">
             <div className="form-group">
               <label>Date *</label>
               <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
             <div className="form-group">
-              <label>Amount (LKR) *</label>
+              <label>Income Amount (LKR) *</label>
               <input type="number" required placeholder="0.00" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
             </div>
           </div>
-          <div className="form-group" style={{ marginTop: '16px' }}>
-            <label>Description *</label>
-            <input type="text" required placeholder="e.g. Spare parts sale" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-          </div>
           <div className="form-grid-2" style={{ marginTop: '16px' }}>
             <div className="form-group">
-              <label>Category</label>
-              <input type="text" placeholder="e.g. Service, Sales" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
+              <label>Job Type *</label>
+              <Autocomplete 
+                options={[
+                  "Building Cleaning", 
+                  "Board Installation", 
+                  "Contract Work", 
+                  "Machine Rental", 
+                  "Other Service",
+                  ...new Set(records.map(r => r.jobType).filter(Boolean))
+                ]}
+                value={formData.jobType}
+                onChange={e => setFormData({...formData, jobType: e.target.value})}
+                placeholder="Select or type job type..."
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Specific Job / Description</label>
+              <input type="text" placeholder="e.g. 3rd Floor Glass Cleaning" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
             </div>
           </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Location Details</p>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label>Address / Site</label>
+              <input type="text" placeholder="e.g. No 45, Galle Road" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label>Building / Location Detail</label>
+              <input type="text" placeholder="e.g. Majestic City" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Resources Used</p>
+          <div className="form-group">
+            <label>Vehicle (If any)</label>
+            <Autocomplete 
+              options={vehicles.map(v => v.number)}
+              value={formData.vehicle}
+              onChange={e => setFormData({ ...formData, vehicle: e.target.value })}
+              placeholder="Search vehicle number..."
+            />
+          </div>
+          
           <div className="form-group" style={{ marginTop: '16px' }}>
+            <label>Personnel Involved (Staff)</label>
+            {formData.employees.map((emp, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <Autocomplete 
+                    options={employeesList.map(e => e.name)}
+                    value={emp}
+                    onChange={e => handleEmployeeChange(idx, e.target.value)}
+                    placeholder="Search staff name..."
+                  />
+                </div>
+                {formData.employees.length > 1 && (
+                  <button type="button" onClick={() => removeEmployeeField(idx)} style={{ background: '#FEE2E2', border: 'none', borderRadius: '8px', color: '#DC2626', padding: '0 10px', cursor: 'pointer' }}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addEmployeeField} className="secondary-btn" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+              <Plus size={14} /> Add Staff
+            </button>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <p className="form-section-title">Additional Info</p>
+          <div className="form-group">
             <label>Notes</label>
             <textarea placeholder="Additional info..." value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} rows={3} />
           </div>
@@ -65,6 +177,7 @@ const ExtraIncomeForm = ({ onSubmit, onCancel, initialData }) => {
 const ExtraIncome = () => {
   const userRole = localStorage.getItem('kt_user_role');
   const canManage = ['Admin', 'Manager'].includes(userRole);
+  const { selectedMonth, selectedYear, isFilterActive } = useMonthFilter();
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [records, setRecords] = React.useState([]);
@@ -74,16 +187,20 @@ const ExtraIncome = () => {
   const [successMsg, setSuccessMsg] = React.useState('');
 
   const columns = canManage 
-    ? ['DATE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)', 'ACTION']
-    : ['DATE', 'DESCRIPTION', 'CATEGORY', 'AMOUNT (LKR)'];
+    ? ['DATE', 'JOB TYPE', 'LOCATION', 'AMOUNT (LKR)', 'ACTION']
+    : ['DATE', 'JOB TYPE', 'LOCATION', 'AMOUNT (LKR)'];
 
-  React.useEffect(() => { fetchRecords(); }, []);
+  React.useEffect(() => { fetchRecords(); }, [selectedMonth, selectedYear, isFilterActive]);
 
   const fetchRecords = async () => {
     setLoading(true);
     try {
       const res = await extraIncomeAPI.get();
-      const raw = Array.isArray(res.data) ? res.data : [];
+      let raw = Array.isArray(res.data) ? res.data : [];
+      
+      // Global Month Filter
+      raw = filterByMonth(raw, 'date', selectedMonth, selectedYear, isFilterActive);
+
       const formatted = raw.map(r => ({
         ...r,
         rawData: r,
@@ -108,8 +225,9 @@ const ExtraIncome = () => {
   const filteredRecords = React.useMemo(() => {
     return records.filter(r => {
       return !searchQuery || 
+        (r.jobType || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (r.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (r.category || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (r.location || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
   }, [records, searchQuery]);
 
@@ -191,8 +309,8 @@ const ExtraIncome = () => {
         data={filteredRecords.map(r => ({
           ...r,
           DATE: r.date_disp,
-          DESCRIPTION: r.description,
-          CATEGORY: r.category || '—',
+          'JOB TYPE': r.jobType || '—',
+          LOCATION: r.location || r.address || '—',
           'AMOUNT (LKR)': r.amount_disp,
           ACTION: r.action
         }))} 
@@ -209,6 +327,7 @@ const ExtraIncome = () => {
           onSubmit={handleAdd} 
           onCancel={() => { setIsModalOpen(false); setEditingRecord(null); }} 
           initialData={editingRecord}
+          records={records}
         />
       </Modal>
     </div>
